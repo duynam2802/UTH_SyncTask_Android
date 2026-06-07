@@ -55,4 +55,21 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Jsoup để cào và parse HTML trang lịch UTH
+    implementation("org.jsoup:jsoup:1.17.2")
+
+    // OkHttp để gửi request đăng nhập và giữ Cookie Session
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:4.12.0")
+
+    // WorkManager để sau này làm tính năng chạy ngầm tự động đồng bộ
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Google Auth
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+
+    // Retrofit & Gson để gửi JSON trực tiếp qua API
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 }
