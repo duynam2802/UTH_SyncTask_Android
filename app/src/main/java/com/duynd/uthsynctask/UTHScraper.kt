@@ -20,6 +20,20 @@ class UthScraper {
     // 1. Định nghĩa các URL chính xác của hệ thống LMS UTH
     private val LOGIN_PAGE_URL = "https://courses.ut.edu.vn/login/index.php"
     private val CALENDAR_URL = "https://courses.ut.edu.vn/calendar/view.php?view=month"
+    private val PORTAL_CALENDAR_URL = "https://portal.ut.edu.vn/calendar"
+
+    fun fetchPortalCalendarHtml(): String? {
+        return try {
+            val request = Request.Builder().url(PORTAL_CALENDAR_URL).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     fun loginAndGetSchedule(mssv: String, pass: String): String? {
         try {
