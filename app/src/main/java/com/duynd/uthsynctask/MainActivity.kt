@@ -1,6 +1,7 @@
 package com.duynd.uthsynctask
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -17,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.duynd.uthsynctask.ui.theme.UTHSyncTaskTheme
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -28,7 +32,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import parseEventsFromHtml
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
@@ -109,6 +113,10 @@ class MainActivity : ComponentActivity() {
 
     private fun startSyncProcess(account: GoogleSignInAccount) {
         syncStatus = "🔄 Đang lấy dữ liệu từ UTH..."
+        
+        // Lên lịch chạy tự động mỗi 1 giờ
+        account.email?.let { schedulePeriodicSync(it) }
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Lấy Access Token cho Google Calendar API
@@ -147,6 +155,27 @@ class MainActivity : ComponentActivity() {
                 Log.e("UTH_SYNC", "Sync error", e)
             }
         }
+    }
+
+    private fun schedulePeriodicSync(googleEmail: String) {
+        // Lưu thông tin cần thiết cho Worker
+        val sharedPrefs = getSharedPreferences("UTH_PREFS", Context.MODE_PRIVATE)
+        sharedPrefs.edit().apply {
+            putString("google_email", googleEmail)
+            putString("mssv", "083205012971")
+            putString("pass", "0964911614@UTH")
+            apply()
+        }
+
+        val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(1, TimeUnit.HOURS)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "UTH_SYNC_WORK",
+            ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
+        Log.d("UTH_SYNC", "Scheduled periodic sync every 1 hour")
     }
 }
 

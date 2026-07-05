@@ -1,4 +1,5 @@
-import com.duynd.uthsynctask.Assignment
+package com.duynd.uthsynctask
+
 import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.util.Date
