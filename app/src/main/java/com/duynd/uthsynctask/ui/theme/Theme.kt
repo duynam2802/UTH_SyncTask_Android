@@ -5,54 +5,86 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+private val UthLightColorScheme = lightColorScheme(
+    primary = UthBluePrimary,
+    onPrimary = UthSurfaceLight,
+    primaryContainer = UthBlueContainer,
+    onPrimaryContainer = UthBluePrimaryDark,
+    secondary = UthCyanAccent,
+    onSecondary = UthSurfaceLight,
+    secondaryContainer = UthBlueContainer,
+    onSecondaryContainer = UthBluePrimaryDark,
+    background = UthBackgroundLight,
+    onBackground = UthOnBackgroundLight,
+    surface = UthSurfaceLight,
+    onSurface = UthOnSurfaceLight,
+    surfaceVariant = UthSurfaceVariantLight,
+    onSurfaceVariant = UthOnBackgroundLight,
+    outline = UthOutlineLight,
+    error = UthError,
+    errorContainer = UthErrorContainer,
+    onError = UthSurfaceLight,
+    onErrorContainer = UthError
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val UthDarkColorScheme = darkColorScheme(
+    primary = UthBluePrimaryLight,
+    onPrimary = UthBlueDeepest,
+    primaryContainer = UthBlueContainerDark,
+    onPrimaryContainer = UthBlueContainer,
+    secondary = UthCyanAccentDark,
+    onSecondary = UthBlueDeepest,
+    secondaryContainer = UthBlueContainerDark,
+    onSecondaryContainer = UthBlueContainer,
+    background = UthBackgroundDark,
+    onBackground = UthOnBackgroundDark,
+    surface = UthSurfaceDark,
+    onSurface = UthOnSurfaceDark,
+    surfaceVariant = UthSurfaceVariantDark,
+    onSurfaceVariant = UthOnBackgroundDark,
+    outline = UthOutlineDark,
+    error = UthError,
+    errorContainer = UthErrorContainer,
+    onError = UthBlueDeepest,
+    onErrorContainer = UthErrorContainer
 )
 
+/**
+ * Theme thương hiệu UTH.
+ *
+ * Cố tình KHÔNG dùng Material You dynamic color (Android 12+) để giữ nhận diện
+ * thương hiệu xanh dương UTH nhất quán trên mọi máy, thay vì đổi theo hình nền máy người dùng.
+ */
 @Composable
 fun UTHSyncTaskTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val colorScheme = if (darkTheme) UthDarkColorScheme else UthLightColorScheme
+    val view = LocalView.current
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                window.navigationBarColor = colorScheme.background.toArgb()
+                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = UthTypography,
         content = content
     )
 }
