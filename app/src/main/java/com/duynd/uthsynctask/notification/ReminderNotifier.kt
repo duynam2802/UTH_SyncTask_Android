@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -95,17 +96,23 @@ class ReminderNotifier(private val context: Context) {
 
         if (!settings.soundEnabled) {
             builder.setSilent(true)
+        } else {
+            // Sử dụng âm thanh báo thức mặc định cho mức khẩn cấp
+            val soundUri = if (tier == ReminderTier.URGENT) {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            } else {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            }
+            builder.setSound(soundUri)
         }
         
         if (settings.vibrationEnabled) {
             val pattern = if (tier == ReminderTier.URGENT) {
-                longArrayOf(0, 500, 200, 500, 200, 500) // Rung mạnh hơn
+                longArrayOf(0, 1000, 500, 1000, 500, 1000) // Rung dài và mạnh
             } else {
-                longArrayOf(0, 250, 100, 250) // Rung kép nhẹ
+                longArrayOf(0, 250, 100, 250)
             }
             builder.setVibrate(pattern)
-        } else {
-            builder.setVibrate(longArrayOf(0)) // Tắt rung
         }
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())

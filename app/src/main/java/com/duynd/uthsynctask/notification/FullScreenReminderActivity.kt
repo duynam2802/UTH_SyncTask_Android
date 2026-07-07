@@ -2,8 +2,13 @@ package com.duynd.uthsynctask.notification
 
 import android.app.KeyguardManager
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,23 +28,17 @@ import com.duynd.uthsynctask.ui.theme.UTHSyncTaskTheme
 
 class FullScreenReminderActivity : ComponentActivity() {
 
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Cấu hình để hiển thị trên màn hình khoá và đánh thức màn hình
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-            keyguardManager.requestDismissKeyguard(this, null)
-        } else {
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-            )
-        }
+        // Cấu hình hiển thị
+        setupLockScreenFlags()
+        
+        // Khởi tạo âm thanh và rung
+        startAlarm()
 
         val title = intent.getStringExtra("EXTRA_TITLE") ?: "Deadline sắp hết hạn!"
         val content = intent.getStringExtra("EXTRA_CONTENT") ?: ""
@@ -49,10 +48,68 @@ class FullScreenReminderActivity : ComponentActivity() {
                 FullScreenReminderContent(
                     title = title,
                     content = content,
-                    onDismiss = { finish() }
+                    onDismiss = { 
+                        stopAlarm()
+                        finish() 
+                    }
                 )
             }
         }
+    }
+
+    private fun setupLockScreenFlags() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            keyguardManager.requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+    }
+
+    private fun startAlarm() {
+        // 1. Phát nhạc chuông báo thức
+        try {
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            ringtone = RingtoneManager.getRingtone(applicationContext, alarmUri)
+            ringtone?.audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            ringtone?.play()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Rung liên tục
+        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (vibrator?.hasVibrator() == true) {
+            val pattern = longArrayOf(0, 1000, 500) // Rung 1s, nghỉ 0.5s
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0)
+            }
+        }
+    }
+
+    private fun stopAlarm() {
+        ringtone?.stop()
+        vibrator?.cancel()
+    }
+
+    override fun onDestroy() {
+        stopAlarm()
+        super.onDestroy()
     }
 }
 

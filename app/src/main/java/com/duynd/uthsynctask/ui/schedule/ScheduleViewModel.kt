@@ -68,45 +68,4 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
             syncRepository.deleteEvent(event.id)
         }
     }
-
-    /** Tạo một deadline giả sắp hết hạn để test thông báo và tính năng nhắc lại sau 1 phút. */
-    fun createTestUrgentEvent() {
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val testEvent = SyncedEvent(
-                id = "test_urgent_${now}",
-                source = com.duynd.uthsynctask.data.model.EventSource.COURSES,
-                title = "Deadline Test (Nhắc lại sau 1p)",
-                courseName = "Môn Học Thử Nghiệm",
-                startTimeMillis = now - 30 * 60 * 1000,
-                endTimeMillis = now + 30 * 60 * 1000,
-                sourceUrl = "https://courses.ut.edu.vn",
-                isPreciseTime = true
-            )
-            eventStore.upsert(testEvent)
-            
-            val notifier = com.duynd.uthsynctask.notification.ReminderNotifier(getApplication())
-            val settingsStore = com.duynd.uthsynctask.data.local.NotificationSettingsStore(getApplication())
-            
-            // 1. Thông báo lần đầu ngay lập tức
-            val settings = settingsStore.getCurrent()
-            if (settings.enabled) {
-                notifier.notify(testEvent, com.duynd.uthsynctask.data.model.ReminderTier.URGENT, settings)
-                eventStore.updateLastNotifiedAt(testEvent.id, System.currentTimeMillis())
-            }
-
-            // 2. Tự động nhắc lại sau 1 phút để test
-            kotlinx.coroutines.delay(60000)
-            
-            // Kiểm tra xem người dùng có xoá event hoặc đánh dấu hoàn thành trong lúc chờ không
-            val freshEvent = eventStore.getAll().firstOrNull { it.id == testEvent.id }
-            if (freshEvent != null && !freshEvent.isCompleted) {
-                val freshSettings = settingsStore.getCurrent()
-                if (freshSettings.enabled) {
-                    notifier.notify(freshEvent, com.duynd.uthsynctask.data.model.ReminderTier.URGENT, freshSettings)
-                    eventStore.updateLastNotifiedAt(freshEvent.id, System.currentTimeMillis())
-                }
-            }
-        }
-    }
 }

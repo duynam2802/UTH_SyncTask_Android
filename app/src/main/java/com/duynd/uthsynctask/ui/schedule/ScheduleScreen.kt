@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -71,16 +70,7 @@ fun ScheduleScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Lịch học & Deadline") },
-                    actions = {
-                        IconButton(onClick = { viewModel.createTestUrgentEvent() }) {
-                            Icon(
-                                Icons.Filled.AddAlert,
-                                contentDescription = "Tạo deadline giả để test",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                    title = { Text("Lịch học & Deadline") }
                 )
                 if (syncState is ScheduleSyncState.Syncing) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())

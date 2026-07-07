@@ -1,6 +1,7 @@
 package com.duynd.uthsynctask.work
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -26,24 +27,33 @@ class ReminderCheckWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        Log.d("ReminderWorker", "Bắt đầu kiểm tra deadline chạy ngầm...")
         try {
             val settingsStore = NotificationSettingsStore(applicationContext)
             val settings = settingsStore.getCurrent()
-            if (!settings.enabled) return@withContext Result.success()
+            if (!settings.enabled) {
+                Log.d("ReminderWorker", "Thông báo đã bị tắt trong cài đặt.")
+                return@withContext Result.success()
+            }
 
             val eventStore = EventStore(applicationContext)
             val notifier = ReminderNotifier(applicationContext)
             val now = System.currentTimeMillis()
 
-            for (event in eventStore.getAll()) {
+            val events = eventStore.getAll()
+            Log.d("ReminderWorker", "Tìm thấy ${events.size} deadline trong kho lưu trữ.")
+
+            for (event in events) {
                 val tier = ReminderPolicy.evaluateTier(event, now)
                 if (ReminderPolicy.shouldNotifyNow(event, tier, now)) {
+                    Log.d("ReminderWorker", "Gửi thông báo cho: ${event.title} (Tier: $tier)")
                     notifier.notify(event, tier, settings)
                     eventStore.updateLastNotifiedAt(event.id, now)
                 }
             }
             Result.success()
         } catch (e: Exception) {
+            Log.e("ReminderWorker", "Lỗi khi chạy worker: ${e.message}")
             Result.retry()
         }
     }

@@ -33,6 +33,7 @@ object ReminderPolicy {
 
     fun shouldNotifyNow(event: SyncedEvent, tier: ReminderTier, nowMillis: Long): Boolean {
         if (tier == ReminderTier.NONE) return false
+
         val interval = if (tier == ReminderTier.URGENT) URGENT_REPEAT_INTERVAL_MILLIS else NORMAL_REPEAT_INTERVAL_MILLIS
         return nowMillis - event.lastNotifiedAtMillis >= interval
     }
