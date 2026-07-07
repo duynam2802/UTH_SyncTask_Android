@@ -76,4 +76,5 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.1")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 }

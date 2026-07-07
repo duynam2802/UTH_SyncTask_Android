@@ -25,17 +25,17 @@ import java.util.concurrent.TimeUnit
  * vì nó cần thêm bước lấy sesskey + gọi API lịch của Moodle để có giờ chính xác.
  */
 class UthAuthRepository(
-    private val baseUrl: String = DEFAULT_BASE_URL
+    val baseUrl: String = DEFAULT_BASE_URL
 ) {
 
-    private val client: OkHttpClient by lazy {
+    val client: OkHttpClient by lazy {
         val cookieManager = CookieManager().apply {
             setCookiePolicy(CookiePolicy.ACCEPT_ALL)
         }
         OkHttpClient.Builder()
             .cookieJar(JavaNetCookieJar(cookieManager))
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
             .followRedirects(true)
             .build()
     }
