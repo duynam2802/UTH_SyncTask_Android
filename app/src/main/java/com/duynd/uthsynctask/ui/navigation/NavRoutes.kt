@@ -19,6 +19,6 @@ sealed class MainTab(val route: String, val label: String) {
     data object Settings : MainTab("tab_settings", "Cài đặt")
 
     companion object {
-        val items = listOf(Schedule, Notifications, Settings)
+        val items: List<MainTab> get() = listOf(Schedule, Notifications, Settings)
     }
 }

@@ -2,6 +2,14 @@ package com.duynd.uthsynctask.ui.schedule
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -125,23 +133,33 @@ fun ScheduleScreen(
         Column(modifier = Modifier.padding(innerPadding)) {
             LastSyncBanner(uiState.lastSyncAtMillis)
 
-            if (uiState.events.isEmpty()) {
-                EmptyState()
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(uiState.events, key = { it.id }) { event ->
-                        EventCard(
-                            event = event,
-                            onToggleCompleted = { viewModel.toggleCompleted(event) },
-                            onDeleteRequest = { eventPendingDelete = event },
-                            onClick = { eventToShowDetail = event }
-                        )
+            AnimatedContent(
+                targetState = uiState.events.isEmpty(),
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+                },
+                label = "ScheduleContent"
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyState()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(uiState.events, key = { it.id }) { event ->
+                            Box(modifier = Modifier.animateItem()) {
+                                EventCard(
+                                    event = event,
+                                    onToggleCompleted = { viewModel.toggleCompleted(event) },
+                                    onDeleteRequest = { eventPendingDelete = event },
+                                    onClick = { eventToShowDetail = event }
+                                )
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(72.dp)) }
                     }
-                    item { Spacer(modifier = Modifier.height(72.dp)) }
                 }
             }
         }
