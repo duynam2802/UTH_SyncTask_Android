@@ -5,6 +5,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -12,7 +13,6 @@ import android.os.Vibrator
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
@@ -20,11 +20,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import com.duynd.uthsynctask.data.local.NotificationSettingsStore
 import com.duynd.uthsynctask.ui.theme.UTHSyncTaskTheme
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class FullScreenReminderActivity : ComponentActivity() {
 
@@ -37,8 +40,16 @@ class FullScreenReminderActivity : ComponentActivity() {
         // Cấu hình hiển thị
         setupLockScreenFlags()
         
-        // Khởi tạo âm thanh và rung
-        startAlarm()
+        // Khởi tạo âm thanh và rung từ cài đặt
+        lifecycleScope.launch {
+            val settings = NotificationSettingsStore(applicationContext).settingsFlow.first()
+            if (settings.enabled && settings.soundEnabled) {
+                startAlarm(settings.soundUri)
+            }
+            if (settings.enabled && settings.vibrationEnabled) {
+                startVibration()
+            }
+        }
 
         val title = intent.getStringExtra("EXTRA_TITLE") ?: "Deadline sắp hết hạn!"
         val content = intent.getStringExtra("EXTRA_CONTENT") ?: ""
@@ -74,21 +85,25 @@ class FullScreenReminderActivity : ComponentActivity() {
         }
     }
 
-    private fun startAlarm() {
-        // 1. Phát nhạc chuông báo thức
+    private fun startAlarm(soundUriStr: String?) {
+        // 1. Phát nhạc chuông người dùng chọn
         try {
-            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            val uri = soundUriStr?.let { Uri.parse(it) }
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            ringtone = RingtoneManager.getRingtone(applicationContext, alarmUri)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            
+            ringtone = RingtoneManager.getRingtone(applicationContext, uri)
             ringtone?.audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
             ringtone?.play()
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
 
+    private fun startVibration() {
         // 2. Rung liên tục
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (vibrator?.hasVibrator() == true) {

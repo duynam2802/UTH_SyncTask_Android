@@ -18,5 +18,6 @@ data class NotificationSettings(
     val enabled: Boolean = true,
     val soundEnabled: Boolean = true,
     val vibrationEnabled: Boolean = true,
-    val fullScreenEnabled: Boolean = false
+    val fullScreenEnabled: Boolean = false,
+    val soundUri: String? = null
 )

@@ -97,12 +97,13 @@ class ReminderNotifier(private val context: Context) {
         if (!settings.soundEnabled) {
             builder.setSilent(true)
         } else {
-            // Sử dụng âm thanh báo thức mặc định cho mức khẩn cấp
-            val soundUri = if (tier == ReminderTier.URGENT) {
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            } else {
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            }
+            // Sử dụng âm thanh người dùng chọn, hoặc mặc định nếu chưa chọn
+            val soundUri = settings.soundUri?.let { android.net.Uri.parse(it) }
+                ?: if (tier == ReminderTier.URGENT) {
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                } else {
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                }
             builder.setSound(soundUri)
         }
         

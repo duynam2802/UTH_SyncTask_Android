@@ -1,10 +1,15 @@
 package com.duynd.uthsynctask.ui.notifications
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,6 +67,15 @@ fun NotificationSettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasPermission = granted }
 
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            viewModel.setSoundUri(uri?.toString())
+        }
+    }
+
     Scaffold(topBar = { TopAppBar(title = { Text("Thông báo") }) }) { innerPadding ->
         Column(
             modifier = Modifier
@@ -90,6 +104,47 @@ fun NotificationSettingsScreen(
                 onCheckedChange = { viewModel.setSoundEnabled(it) },
                 enabled = settings.enabled
             )
+
+            if (settings.soundEnabled && settings.enabled) {
+                val currentRingtoneName = remember(settings.soundUri) {
+                    try {
+                        val uri = settings.soundUri?.let { Uri.parse(it) }
+                            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                        RingtoneManager.getRingtone(context, uri).getTitle(context)
+                    } catch (e: Exception) {
+                        "Mặc định"
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_RINGTONE)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Chọn âm thanh thông báo")
+                                putExtra(
+                                    RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                    settings.soundUri?.let { Uri.parse(it) }
+                                )
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            }
+                            ringtonePickerLauncher.launch(intent)
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Tiếng thông báo", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            currentRingtoneName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
 
             SettingsSwitchCard(
                 title = "Rung",

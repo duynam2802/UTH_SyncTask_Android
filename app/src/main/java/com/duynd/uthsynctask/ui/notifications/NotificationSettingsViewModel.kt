@@ -23,6 +23,7 @@ class NotificationSettingsViewModel(application: Application) : AndroidViewModel
     fun setSoundEnabled(enabled: Boolean) = updateSettings { it.copy(soundEnabled = enabled) }
     fun setVibrationEnabled(enabled: Boolean) = updateSettings { it.copy(vibrationEnabled = enabled) }
     fun setFullScreenEnabled(enabled: Boolean) = updateSettings { it.copy(fullScreenEnabled = enabled) }
+    fun setSoundUri(uri: String?) = updateSettings { it.copy(soundUri = uri) }
 
     private fun updateSettings(transform: (NotificationSettings) -> NotificationSettings) {
         viewModelScope.launch {
