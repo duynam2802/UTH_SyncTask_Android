@@ -1,5 +1,8 @@
 package com.duynd.uthsynctask.ui.schedule
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,39 +18,55 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Class
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.data.model.SyncOutcome
 import com.duynd.uthsynctask.data.model.SyncedEvent
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -65,12 +84,30 @@ fun ScheduleScreen(
     val uiState by viewModel.uiState.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
     var eventPendingDelete by remember { mutableStateOf<SyncedEvent?>(null) }
+    var eventToShowDetail by remember { mutableStateOf<SyncedEvent?>(null) }
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Lịch học & Deadline") }
+                    title = { Text("Lịch học & Deadline") },
+                    actions = {
+                        IconButton(onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("content://com.android.calendar/time/")
+                            }
+                            context.startActivity(intent)
+                        }) {
+                            Icon(
+                                Icons.Filled.CalendarMonth,
+                                contentDescription = "Mở ứng dụng Lịch",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 )
                 if (syncState is ScheduleSyncState.Syncing) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -100,7 +137,8 @@ fun ScheduleScreen(
                         EventCard(
                             event = event,
                             onToggleCompleted = { viewModel.toggleCompleted(event) },
-                            onDeleteRequest = { eventPendingDelete = event }
+                            onDeleteRequest = { eventPendingDelete = event },
+                            onClick = { eventToShowDetail = event }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(72.dp)) }
@@ -121,6 +159,22 @@ fun ScheduleScreen(
             )
         }
         else -> Unit
+    }
+
+    eventToShowDetail?.let { event ->
+        ModalBottomSheet(
+            onDismissRequest = { eventToShowDetail = null },
+            sheetState = sheetState
+        ) {
+            EventDetailContent(
+                event = event,
+                onDismiss = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        if (!sheetState.isVisible) eventToShowDetail = null
+                    }
+                }
+            )
+        }
     }
 
     eventPendingDelete?.let { event ->
@@ -183,10 +237,13 @@ private fun EmptyState() {
 private fun EventCard(
     event: SyncedEvent,
     onToggleCompleted: () -> Unit,
-    onDeleteRequest: () -> Unit
+    onDeleteRequest: () -> Unit,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -235,6 +292,128 @@ private fun EventCard(
             IconButton(onClick = onDeleteRequest) {
                 Icon(Icons.Filled.Delete, contentDescription = "Xoá", tint = MaterialTheme.colorScheme.error)
             }
+        }
+    }
+}
+
+@Composable
+private fun EventDetailContent(
+    event: SyncedEvent,
+    onDismiss: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SourceBadge(event.source)
+            if (event.isCompleted) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "Đã hoàn thành",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = event.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (!event.courseName.isNullOrBlank()) {
+            DetailItem(
+                icon = Icons.Filled.Class,
+                label = "Môn học",
+                value = event.courseName
+            )
+        }
+
+        DetailItem(
+            icon = Icons.Filled.CalendarMonth,
+            label = "Thời gian bắt đầu",
+            value = displayFormat.format(java.util.Date(event.startTimeMillis))
+        )
+
+        DetailItem(
+            icon = Icons.Filled.Event,
+            label = "Thời gian kết thúc",
+            value = displayFormat.format(java.util.Date(event.endTimeMillis))
+        )
+
+        if (!event.isPreciseTime) {
+            Text(
+                text = "⚠️ Đây là giờ ước tính, bạn nên kiểm tra lại trên trang web của trường.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = { uriHandler.openUri(event.sourceUrl) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Mở trang nguồn")
+            }
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Đóng")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailItem(
+    icon: ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }

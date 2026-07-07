@@ -35,7 +35,7 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     private val syncRepository = SyncRepository(application)
 
     val uiState: StateFlow<ScheduleUiState> = combine(
-        eventStore.eventsFlow.map { list -> list.sortedBy { it.startTimeMillis } },
+        eventStore.eventsFlow.map { list -> list.sortedByDescending { it.endTimeMillis } },
         settingsStore.lastSyncAtFlow
     ) { events, lastSync ->
         ScheduleUiState(events = events, lastSyncAtMillis = lastSync)

@@ -33,13 +33,14 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     init {
-        // Tự động điền + thử đăng nhập ngầm nếu đã có tài khoản được ghi nhớ trước đó.
+        // Tự động điền + vào thẳng app nếu đã có tài khoản được ghi nhớ.
+        // KHÔNG gọi đăng nhập UTH ở đây để tiết kiệm tài nguyên, khi nào sync mới thực sự đăng nhập.
         viewModelScope.launch {
             val saved = credentialStore.getSavedCredentials()
             if (saved != null) {
                 mssvInput = saved.mssv
                 passwordInput = saved.password
-                attemptAutoLogin(saved)
+                _uiState.value = LoginUiState.Success(saved.mssv)
             }
         }
     }
@@ -58,22 +59,6 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onDialogDismissed() {
         _uiState.value = LoginUiState.Idle
-    }
-
-    private fun attemptAutoLogin(credentials: UthCredentials) {
-        _uiState.value = LoginUiState.CheckingSavedAccount
-        viewModelScope.launch {
-            when (val result = authRepository.login(credentials.mssv, credentials.password)) {
-                is LoginResult.Success -> {
-                    _uiState.value = LoginUiState.Success(credentials.mssv)
-                }
-                else -> {
-                    // Đăng nhập ngầm thất bại (VD: đổi mật khẩu ở nơi khác) -> quay lại
-                    // trạng thái nhập tay bình thường, không làm phiền bằng popup lỗi.
-                    _uiState.value = LoginUiState.Idle
-                }
-            }
-        }
     }
 
     fun login() {
