@@ -44,6 +44,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.duynd.uthsynctask.data.model.NotificationSettings
+import androidx.compose.ui.tooling.preview.Preview
+import com.duynd.uthsynctask.ui.theme.UTHSyncTaskTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +79,56 @@ fun NotificationSettingsScreen(
         }
     }
 
+    val currentRingtoneName = remember(settings.soundUri) {
+        try {
+            val uri = settings.soundUri?.let { Uri.parse(it) }
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            RingtoneManager.getRingtone(context, uri).getTitle(context)
+        } catch (e: Exception) {
+            "Mặc định"
+        }
+    }
+
+    NotificationSettingsContent(
+        settings = settings,
+        hasPermission = hasPermission,
+        onPermissionRequest = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+        onEnabledChange = { viewModel.setEnabled(it) },
+        onSoundEnabledChange = { viewModel.setSoundEnabled(it) },
+        onVibrationEnabledChange = { viewModel.setVibrationEnabled(it) },
+        onFullScreenEnabledChange = { viewModel.setFullScreenEnabled(it) },
+        onPickRingtone = {
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_RINGTONE)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Chọn âm thanh thông báo")
+                putExtra(
+                    RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                    settings.soundUri?.let { Uri.parse(it) }
+                )
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            }
+            ringtonePickerLauncher.launch(intent)
+        },
+        onSendTestNotification = { viewModel.sendTestNotification() },
+        currentRingtoneName = currentRingtoneName
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationSettingsContent(
+    settings: NotificationSettings,
+    hasPermission: Boolean,
+    onPermissionRequest: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
+    onSoundEnabledChange: (Boolean) -> Unit,
+    onVibrationEnabledChange: (Boolean) -> Unit,
+    onFullScreenEnabledChange: (Boolean) -> Unit,
+    onPickRingtone: () -> Unit,
+    onSendTestNotification: () -> Unit,
+    currentRingtoneName: String
+) {
     Scaffold(topBar = { TopAppBar(title = { Text("Thông báo") }) }) { innerPadding ->
         Column(
             modifier = Modifier
@@ -86,7 +139,7 @@ fun NotificationSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (!hasPermission) {
-                PermissionBanner(onRequest = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) })
+                PermissionBanner(onRequest = onPermissionRequest)
             }
 
             SettingsSwitchCard(
@@ -94,44 +147,22 @@ fun NotificationSettingsScreen(
                 description = "Nhắc trước 12 giờ, lặp lại mỗi giờ. Trong 1 giờ cuối nếu chưa " +
                     "hoàn thành sẽ nhắc gấp hơn (mỗi 15 phút). Chỉ áp dụng cho deadline chưa hoàn thành.",
                 checked = settings.enabled,
-                onCheckedChange = { viewModel.setEnabled(it) }
+                onCheckedChange = onEnabledChange
             )
 
             SettingsSwitchCard(
                 title = "Âm thanh",
                 description = "Phát âm thanh khi có thông báo nhắc nhở.",
                 checked = settings.soundEnabled,
-                onCheckedChange = { viewModel.setSoundEnabled(it) },
+                onCheckedChange = onSoundEnabledChange,
                 enabled = settings.enabled
             )
 
             if (settings.soundEnabled && settings.enabled) {
-                val currentRingtoneName = remember(settings.soundUri) {
-                    try {
-                        val uri = settings.soundUri?.let { Uri.parse(it) }
-                            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                        RingtoneManager.getRingtone(context, uri).getTitle(context)
-                    } catch (e: Exception) {
-                        "Mặc định"
-                    }
-                }
-
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_RINGTONE)
-                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Chọn âm thanh thông báo")
-                                putExtra(
-                                    RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
-                                    settings.soundUri?.let { Uri.parse(it) }
-                                )
-                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                            }
-                            ringtonePickerLauncher.launch(intent)
-                        },
+                        .clickable { onPickRingtone() },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
@@ -150,7 +181,7 @@ fun NotificationSettingsScreen(
                 title = "Rung",
                 description = "Rung khi có thông báo. Rung mạnh hơn khi ở mức khẩn cấp.",
                 checked = settings.vibrationEnabled,
-                onCheckedChange = { viewModel.setVibrationEnabled(it) },
+                onCheckedChange = onVibrationEnabledChange,
                 enabled = settings.enabled
             )
 
@@ -158,7 +189,7 @@ fun NotificationSettingsScreen(
                 title = "Thông báo toàn màn hình (Báo thức)",
                 description = "Khi có deadline khẩn cấp, hiển thị màn hình nhắc nhở toàn màn hình ngay cả khi điện thoại đang khoá.",
                 checked = settings.fullScreenEnabled,
-                onCheckedChange = { viewModel.setFullScreenEnabled(it) },
+                onCheckedChange = onFullScreenEnabledChange,
                 enabled = settings.enabled
             )
 
@@ -175,7 +206,7 @@ fun NotificationSettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
-                        onClick = { viewModel.sendTestNotification() },
+                        onClick = onSendTestNotification,
                         enabled = hasPermission
                     ) {
                         Icon(Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
@@ -241,3 +272,29 @@ private fun SettingsSwitchCard(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+fun NotificationSettingsPreview() {
+    UTHSyncTaskTheme {
+        NotificationSettingsContent(
+            settings = NotificationSettings(
+                enabled = true,
+                soundEnabled = true,
+                vibrationEnabled = true,
+                fullScreenEnabled = false,
+                soundUri = null
+            ),
+            hasPermission = true,
+            onPermissionRequest = {},
+            onEnabledChange = {},
+            onSoundEnabledChange = {},
+            onVibrationEnabledChange = {},
+            onFullScreenEnabledChange = {},
+            onPickRingtone = {},
+            onSendTestNotification = {},
+            currentRingtoneName = "Mặc định"
+        )
+    }
+}
+

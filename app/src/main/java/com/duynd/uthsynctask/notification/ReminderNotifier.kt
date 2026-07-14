@@ -38,12 +38,17 @@ class ReminderNotifier(private val context: Context) {
         }
         val notificationId = event.id.hashCode()
 
-        val title = if (tier == ReminderTier.URGENT) {
-            "⏰ Sắp hết hạn: ${event.title}"
-        } else {
-            "Nhắc deadline: ${event.title}"
+        val isPortal = event.source == com.duynd.uthsynctask.data.model.EventSource.PORTAL
+        val title = when {
+            isPortal && tier == ReminderTier.URGENT -> "⏰ Sắp vào học: ${event.title}"
+            isPortal -> "Lịch học sắp tới: ${event.title}"
+            tier == ReminderTier.URGENT -> "⏰ Sắp hết hạn: ${event.title}"
+            else -> "Nhắc deadline: ${event.title}"
         }
-        val contentText = "${event.source.displayName} · Hạn: ${timeFormat.format(java.util.Date(event.endTimeMillis))}"
+
+        val timeLabel = if (isPortal) "Bắt đầu" else "Hạn"
+        val referenceTime = if (isPortal) event.startTimeMillis else event.endTimeMillis
+        val contentText = "${event.source.displayName} · $timeLabel: ${timeFormat.format(java.util.Date(referenceTime))}"
 
         val openAppIntent = PendingIntent.getActivity(
             context,
@@ -77,7 +82,7 @@ class ReminderNotifier(private val context: Context) {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent)
-            .addAction(0, "Đã biết / Hoàn thành", markDoneIntent)
+            .addAction(0, if (isPortal) "Đã xem" else "Đã biết / Hoàn thành", markDoneIntent)
 
         // Thiết lập Full Screen Intent nếu là mức URGENT và được bật trong cài đặt
         if (tier == ReminderTier.URGENT && settings.fullScreenEnabled) {

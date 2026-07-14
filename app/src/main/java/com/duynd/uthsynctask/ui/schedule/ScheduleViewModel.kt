@@ -52,7 +52,17 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         val startOfWeek = getStartOfWeekMillis()
         val endOfWeek = startOfWeek + 7L * 24 * 60 * 60 * 1000
 
-        val (completed, active) = events.partition { it.isCompleted }
+        // Phân tách:
+        // - 'active': Deadline chưa xong HOẶC Lịch học (dù đã xem hay chưa) nhưng chưa kết thúc.
+        // - 'completed': Deadline đã xong HOẶC Lịch học đã kết thúc.
+        val (completed, active) = events.partition {
+            val isPortal = it.source == com.duynd.uthsynctask.data.model.EventSource.PORTAL
+            if (isPortal) {
+                it.endTimeMillis < now // Lịch học cũ thì cho vào mục đã xong/cũ
+            } else {
+                it.isCompleted // Deadline đã đánh dấu xong
+            }
+        }
 
         val upcoming = active.filter { it.startTimeMillis > now && it.startTimeMillis <= now + 24 * 60 * 60 * 1000 }
             .sortedBy { it.startTimeMillis }

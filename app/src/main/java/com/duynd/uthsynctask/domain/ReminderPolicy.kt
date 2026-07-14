@@ -21,12 +21,20 @@ object ReminderPolicy {
     fun evaluateTier(event: SyncedEvent, nowMillis: Long): ReminderTier {
         if (event.isCompleted) return ReminderTier.NONE
 
-        val timeUntilDeadline = event.endTimeMillis - nowMillis
+        // Với lịch học (PORTAL), ta nhắc dựa trên giờ BẮT ĐẦU.
+        // Với deadline (COURSES, THNN), ta nhắc dựa trên giờ KẾT THÚC (hạn nộp).
+        val referenceTime = if (event.source == com.duynd.uthsynctask.data.model.EventSource.PORTAL) {
+            event.startTimeMillis
+        } else {
+            event.endTimeMillis
+        }
+
+        val timeUntil = referenceTime - nowMillis
 
         return when {
-            timeUntilDeadline < -OVERDUE_GRACE_MILLIS -> ReminderTier.NONE // trễ hạn đã lâu, thôi không làm phiền nữa
-            timeUntilDeadline > ADVANCE_WINDOW_MILLIS -> ReminderTier.NONE // còn quá xa, chưa cần nhắc
-            timeUntilDeadline <= URGENT_WINDOW_MILLIS -> ReminderTier.URGENT
+            timeUntil < -OVERDUE_GRACE_MILLIS -> ReminderTier.NONE // quá hạn đã lâu
+            timeUntil > ADVANCE_WINDOW_MILLIS -> ReminderTier.NONE // còn quá xa
+            timeUntil <= URGENT_WINDOW_MILLIS -> ReminderTier.URGENT
             else -> ReminderTier.NORMAL
         }
     }

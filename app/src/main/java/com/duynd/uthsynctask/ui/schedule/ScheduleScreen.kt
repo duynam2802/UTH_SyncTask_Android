@@ -343,7 +343,7 @@ private fun EventCard(
                     text = event.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isUpcoming) FontWeight.Bold else FontWeight.Medium,
-                    textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null,
+                    textDecoration = if (event.isCompleted && !isPortal) TextDecoration.LineThrough else null,
                     color = if (event.isCompleted) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     } else {
@@ -371,17 +371,17 @@ private fun EventCard(
                 }
             }
 
-            if (!isPortal) {
-                IconButton(onClick = onToggleCompleted) {
-                    Icon(
-                        imageVector = if (event.isCompleted) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                        contentDescription = null,
-                        tint = if (event.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                    )
-                }
-            } else {
+            IconButton(onClick = onToggleCompleted) {
+                Icon(
+                    imageVector = if (event.isCompleted) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = if (isPortal) "Đánh dấu đã xem" else "Hoàn thành",
+                    tint = if (event.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                )
+            }
+            
+            if (isPortal) {
                 IconButton(onClick = onDeleteRequest) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Xoá", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                    Icon(Icons.Filled.Delete, contentDescription = "Xoá", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
                 }
             }
         }
@@ -409,12 +409,13 @@ private fun EventDetailContent(
         ) {
             SourceBadge(event.source)
             if (event.isCompleted) {
+                val statusText = if (event.source == EventSource.PORTAL) "Đã xem" else "Đã hoàn thành"
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "Đã hoàn thành",
+                        text = statusText,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
