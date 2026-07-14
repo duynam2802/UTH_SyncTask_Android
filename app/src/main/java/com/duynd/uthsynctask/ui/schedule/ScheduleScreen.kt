@@ -3,73 +3,31 @@ package com.duynd.uthsynctask.ui.schedule
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Class
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.data.model.SyncOutcome
@@ -83,7 +41,7 @@ private val displayFormat = SimpleDateFormat("HH:mm, dd/MM/yyyy", Locale("vi")).
     timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ScheduleScreen(
     onNavigateToSettings: () -> Unit,
@@ -97,11 +55,14 @@ fun ScheduleScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabTitles = listOf("Tất cả", "Lịch học", "Deadline")
+
     Scaffold(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Lịch học & Deadline") },
+                    title = { Text("Lịch học & Deadline", fontWeight = FontWeight.ExtraBold) },
                     actions = {
                         IconButton(onClick = {
                             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -117,6 +78,22 @@ fun ScheduleScreen(
                         }
                     }
                 )
+                
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    edgePadding = 16.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    divider = {}
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+
                 if (syncState is ScheduleSyncState.Syncing) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -125,6 +102,8 @@ fun ScheduleScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { viewModel.syncNow() },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 icon = { Icon(Icons.Filled.Sync, contentDescription = null) },
                 text = { Text("Đồng bộ ngay") }
             )
@@ -133,8 +112,22 @@ fun ScheduleScreen(
         Column(modifier = Modifier.padding(innerPadding)) {
             LastSyncBanner(uiState.lastSyncAtMillis)
 
+            val filteredGroups = remember(uiState.groups, selectedTabIndex) {
+                uiState.groups.map { group ->
+                    group.copy(
+                        events = group.events.filter { event ->
+                            when (selectedTabIndex) {
+                                1 -> event.source == EventSource.PORTAL
+                                2 -> event.source == EventSource.COURSES || event.source == EventSource.THNN
+                                else -> true
+                            }
+                        }
+                    )
+                }.filter { it.events.isNotEmpty() }
+            }
+
             AnimatedContent(
-                targetState = uiState.events.isEmpty(),
+                targetState = filteredGroups.isEmpty(),
                 transitionSpec = {
                     fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
                 },
@@ -145,38 +138,53 @@ fun ScheduleScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        contentPadding = PaddingValues(bottom = 80.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(uiState.events, key = { it.id }) { event ->
-                            Box(modifier = Modifier.animateItem()) {
-                                EventCard(
-                                    event = event,
-                                    onToggleCompleted = { viewModel.toggleCompleted(event) },
-                                    onDeleteRequest = { eventPendingDelete = event },
-                                    onClick = { eventToShowDetail = event }
-                                )
+                        filteredGroups.forEach { group ->
+                            stickyHeader {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                                ) {
+                                    Text(
+                                        text = group.title,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+                                }
+                            }
+                            
+                            items(group.events, key = { it.id }) { event ->
+                                Box(modifier = Modifier.animateItem().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                    EventCard(
+                                        event = event,
+                                        onToggleCompleted = { viewModel.toggleCompleted(event) },
+                                        onDeleteRequest = { eventPendingDelete = event },
+                                        onClick = { eventToShowDetail = event }
+                                    )
+                                }
                             }
                         }
-                        item { Spacer(modifier = Modifier.height(72.dp)) }
                     }
                 }
             }
         }
     }
 
-    when (val state = syncState) {
-        is ScheduleSyncState.Finished -> {
-            SyncResultDialog(
-                outcome = state.outcome,
-                onDismiss = { viewModel.dismissSyncResult() },
-                onGoToSettings = {
-                    viewModel.dismissSyncResult()
-                    onNavigateToSettings()
-                }
-            )
-        }
-        else -> Unit
+    // Dialogs and BottomSheets
+    if (syncState is ScheduleSyncState.Finished) {
+        val state = syncState as ScheduleSyncState.Finished
+        SyncResultDialog(
+            outcome = state.outcome,
+            onDismiss = { viewModel.dismissSyncResult() },
+            onGoToSettings = {
+                viewModel.dismissSyncResult()
+                onNavigateToSettings()
+            }
+        )
     }
 
     eventToShowDetail?.let { event ->
@@ -198,7 +206,7 @@ fun ScheduleScreen(
     eventPendingDelete?.let { event ->
         AlertDialog(
             onDismissRequest = { eventPendingDelete = null },
-            title = { Text("Xoá deadline này?") },
+            title = { Text("Xoá sự kiện này?") },
             text = { Text("\"${event.title}\" sẽ bị xoá khỏi danh sách và khỏi Google Calendar (nếu đã đồng bộ).") },
             confirmButton = {
                 TextButton(onClick = {
@@ -241,9 +249,9 @@ private fun EmptyState() {
                 modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             )
-            Text("Chưa có deadline nào", style = MaterialTheme.typography.titleMedium)
+            Text("Không có dữ liệu", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Bấm \"Đồng bộ ngay\" để lấy deadline từ Courses và thnn",
+                "Thử đổi bộ lọc hoặc nhấn \"Đồng bộ ngay\"",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -258,57 +266,123 @@ private fun EventCard(
     onDeleteRequest: () -> Unit,
     onClick: () -> Unit
 ) {
+    val isUpcoming = !event.isCompleted && 
+            event.startTimeMillis > System.currentTimeMillis() && 
+            event.startTimeMillis <= System.currentTimeMillis() + 24 * 60 * 60 * 1000
+
+    val isPortal = event.source == EventSource.PORTAL
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isUpcoming) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isUpcoming) 2.dp else 0.5.dp),
+        border = if (isUpcoming) {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        } else null
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onToggleCompleted) {
-                Icon(
-                    imageVector = if (event.isCompleted) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                    contentDescription = if (event.isCompleted) "Đã hoàn thành" else "Đánh dấu hoàn thành",
-                    tint = if (event.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isPortal) {
+                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                },
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isPortal) Icons.Filled.Class else Icons.Filled.Assignment,
+                        contentDescription = null,
+                        tint = if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(4.dp))
+
+            Spacer(modifier = Modifier.width(14.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SourceBadge(event.source)
-                    if (!event.isPreciseTime) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "giờ ước tính",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                    Text(
+                        text = if (isPortal) "Lịch học" else "Deadline",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (isUpcoming) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                "SẮP DIỄN RA",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                                fontSize = 9.sp
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
+                
                 Text(
                     text = event.title,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (isUpcoming) FontWeight.Bold else FontWeight.Medium,
                     textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null,
                     color = if (event.isCompleted) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     }
                 )
-                Text(
-                    text = "${displayFormat.format(java.util.Date(event.startTimeMillis))} → ${displayFormat.format(java.util.Date(event.endTimeMillis))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isPortal) {
+                            "${displayFormat.format(java.util.Date(event.startTimeMillis))} - ${displayFormat.format(java.util.Date(event.endTimeMillis)).substringBefore(",")}"
+                        } else {
+                            "Hết hạn: ${displayFormat.format(java.util.Date(event.endTimeMillis))}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            IconButton(onClick = onDeleteRequest) {
-                Icon(Icons.Filled.Delete, contentDescription = "Xoá", tint = MaterialTheme.colorScheme.error)
+
+            if (!isPortal) {
+                IconButton(onClick = onToggleCompleted) {
+                    Icon(
+                        imageVector = if (event.isCompleted) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint = if (event.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                    )
+                }
+            } else {
+                IconButton(onClick = onDeleteRequest) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Xoá", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                }
             }
         }
     }

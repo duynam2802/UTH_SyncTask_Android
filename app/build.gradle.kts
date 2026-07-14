@@ -19,15 +19,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Chỉ giữ lại tiếng Việt và tiếng Anh để giảm dung lượng
+        resourceConfigurations += listOf("en", "vi")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true // Bật thu nhỏ code (Xóa code thừa)
+            isShrinkResources = true // Bật thu nhỏ tài nguyên (Xóa ảnh/icon thừa)
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

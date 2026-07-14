@@ -76,7 +76,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = LoginUiState.Loading
         viewModelScope.launch {
             when (val result = authRepository.login(mssv, password)) {
-                is LoginResult.Success -> {
+                is LoginResult.Success, is LoginResult.SuccessWithToken -> {
                     if (rememberMe) {
                         credentialStore.saveCredentials(UthCredentials(mssv, password))
                     } else {

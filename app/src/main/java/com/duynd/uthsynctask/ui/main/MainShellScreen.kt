@@ -24,11 +24,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.duynd.uthsynctask.data.local.SecureCredentialStore
 import com.duynd.uthsynctask.ui.navigation.MainTab
 import com.duynd.uthsynctask.ui.notifications.NotificationSettingsScreen
 import com.duynd.uthsynctask.ui.schedule.ScheduleScreen
 import com.duynd.uthsynctask.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun MainShellScreen(
@@ -43,6 +45,8 @@ fun MainShellScreen(
     
     // Xác định tab hiện tại dựa trên trang của Pager
     val currentTab = tabs[pagerState.currentPage]
+    val context = LocalContext.current
+    val credentialStore = remember { SecureCredentialStore(context) }
 
     Scaffold(
         bottomBar = {
@@ -96,7 +100,10 @@ fun MainShellScreen(
                             }
                         )
                         MainTab.Notifications -> NotificationSettingsScreen()
-                        MainTab.Settings -> SettingsScreen(onLoggedOut = onLogout)
+                        MainTab.Settings -> SettingsScreen(
+                            onLoggedOut = onLogout,
+                            credentialStore = credentialStore
+                        )
                     }
                 }
             }

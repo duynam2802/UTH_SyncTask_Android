@@ -81,6 +81,21 @@ class GoogleCalendarRepository {
         }
     }
 
+    suspend fun listAllEvents(
+        accessToken: String,
+        calendarId: String,
+        timeMin: Long? = null
+    ): Result<List<GoogleEventItem>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val timeMinStr = timeMin?.let { isoFormat.format(java.util.Date(it)) + "Z" }
+            val response = api.listEvents(bearer(accessToken), calendarId, timeMin = timeMinStr)
+            if (!response.isSuccessful) {
+                error("Không thể lấy danh sách sự kiện (mã ${response.code()}).")
+            }
+            response.body()?.items.orEmpty()
+        }
+    }
+
     suspend fun insertEvent(
         accessToken: String,
         calendarId: String,
@@ -132,18 +147,22 @@ class GoogleCalendarRepository {
     private fun toEventBody(event: SyncedEvent): GoogleEventBody {
         val statusPrefix = if (event.isCompleted) "✅ " else ""
 
-        // Theo yêu cầu: CHỈ thêm sự kiện vào NGÀY của thời gian kết thúc (deadline),
-        // hiển thị dưới dạng khối từ 0h sáng hôm đó tới đúng giờ kết thúc - giúp thấy rõ
-        // cả ngày có deadline mà không cần quan tâm ngày/giờ "mở" trước đó.
         val vietnamTimeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-        val endCalendar = Calendar.getInstance(vietnamTimeZone).apply {
-            timeInMillis = event.endTimeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+        
+        // Phân biệt logic hiển thị:
+        // 1. PORTAL (Lịch học): Hiển thị đúng block thời gian từ lúc bắt đầu đến kết thúc.
+        // 2. Moodle (Deadline): Hiển thị từ 0h sáng ngày hôm đó tới đúng giờ deadline để dễ theo dõi.
+        val startMillis = if (event.source == com.duynd.uthsynctask.data.model.EventSource.PORTAL) {
+            event.startTimeMillis
+        } else {
+            Calendar.getInstance(vietnamTimeZone).apply {
+                timeInMillis = event.endTimeMillis
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
         }
-        val dayStartMillis = endCalendar.timeInMillis
 
         val description = buildString {
             append("Thời gian bắt đầu: ${descriptionTimeFormat.format(java.util.Date(event.startTimeMillis))}\n")
@@ -158,8 +177,8 @@ class GoogleCalendarRepository {
         return GoogleEventBody(
             summary = "$statusPrefix${event.title}",
             description = description,
-            start = GoogleEventDateTime(isoFormat.format(java.util.Date(dayStartMillis))),
-            end = GoogleEventDateTime(isoFormat.format(java.util.Date(event.endTimeMillis))),
+            start = GoogleEventDateTime(dateTime = isoFormat.format(java.util.Date(startMillis))),
+            end = GoogleEventDateTime(dateTime = isoFormat.format(java.util.Date(event.endTimeMillis))),
             reminders = GoogleEventReminders(
                 useDefault = false,
                 overrides = listOf(GoogleReminderOverride(method = "popup", minutes = 60))

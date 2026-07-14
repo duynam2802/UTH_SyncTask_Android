@@ -17,6 +17,16 @@ interface GoogleCalendarApi {
         @Header("Authorization") token: String
     ): Response<GoogleCalendarListResponse>
 
+    @GET("calendar/v3/calendars/{calendarId}/events")
+    suspend fun listEvents(
+        @Header("Authorization") token: String,
+        @Path("calendarId") calendarId: String,
+        @Query("timeMin") timeMin: String? = null,
+        @Query("timeMax") timeMax: String? = null,
+        @Query("singleEvents") singleEvents: Boolean = true,
+        @Query("maxResults") maxResults: Int = 250
+    ): Response<GoogleEventsListResponse>
+
     /** Dùng để tìm sự kiện theo nhãn riêng (uthSyncId) - phục vụ chống trùng lặp. */
     @GET("calendar/v3/calendars/{calendarId}/events")
     suspend fun listEventsByPrivateProperty(
@@ -69,6 +79,7 @@ data class GoogleEventsListResponse(val items: List<GoogleEventItem> = emptyList
 data class GoogleEventItem(
     val id: String? = null,
     val summary: String? = null,
+    val start: GoogleEventDateTime? = null,
     val htmlLink: String? = null
 )
 
@@ -83,7 +94,8 @@ data class GoogleEventBody(
 )
 
 data class GoogleEventDateTime(
-    val dateTime: String,
+    val dateTime: String? = null,
+    val date: String? = null,
     val timeZone: String = "Asia/Ho_Chi_Minh"
 )
 

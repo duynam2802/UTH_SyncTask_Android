@@ -24,8 +24,13 @@ sealed class ScheduleSyncState {
 }
 
 data class ScheduleUiState(
-    val events: List<SyncedEvent> = emptyList(),
+    val groups: List<EventGroup> = emptyList(),
     val lastSyncAtMillis: Long? = null
+)
+
+data class EventGroup(
+    val title: String,
+    val events: List<SyncedEvent>
 )
 
 class ScheduleViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,11 +40,50 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     private val syncRepository = SyncRepository(application)
 
     val uiState: StateFlow<ScheduleUiState> = combine(
-        eventStore.eventsFlow.map { list -> list.sortedByDescending { it.endTimeMillis } },
+        eventStore.eventsFlow,
         settingsStore.lastSyncAtFlow
     ) { events, lastSync ->
-        ScheduleUiState(events = events, lastSyncAtMillis = lastSync)
+        val groups = groupEvents(events)
+        ScheduleUiState(groups = groups, lastSyncAtMillis = lastSync)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleUiState())
+
+    private fun groupEvents(events: List<SyncedEvent>): List<EventGroup> {
+        val now = System.currentTimeMillis()
+        val startOfWeek = getStartOfWeekMillis()
+        val endOfWeek = startOfWeek + 7L * 24 * 60 * 60 * 1000
+
+        val (completed, active) = events.partition { it.isCompleted }
+
+        val upcoming = active.filter { it.startTimeMillis > now && it.startTimeMillis <= now + 24 * 60 * 60 * 1000 }
+            .sortedBy { it.startTimeMillis }
+        val thisWeek = active.filter { it.startTimeMillis > now + 24 * 60 * 60 * 1000 && it.startTimeMillis <= endOfWeek }
+            .sortedBy { it.startTimeMillis }
+        val others = active.filter { it.startTimeMillis > endOfWeek || it.startTimeMillis <= now }
+            .sortedBy { it.startTimeMillis }
+
+        val completedThisWeek = completed.filter { it.startTimeMillis >= startOfWeek && it.startTimeMillis <= endOfWeek }
+            .sortedByDescending { it.startTimeMillis }
+        val completedEarlier = completed.filter { it.startTimeMillis < startOfWeek }
+            .sortedByDescending { it.startTimeMillis }
+
+        return buildList {
+            if (upcoming.isNotEmpty()) add(EventGroup("🔥 Sắp diễn ra (24h tới)", upcoming))
+            if (thisWeek.isNotEmpty()) add(EventGroup("📅 Trong tuần này", thisWeek))
+            if (others.isNotEmpty()) add(EventGroup("⏳ Sắp tới / Khác", others))
+            if (completedThisWeek.isNotEmpty()) add(EventGroup("✅ Đã xong tuần này", completedThisWeek))
+            if (completedEarlier.isNotEmpty()) add(EventGroup("📁 Đã hoàn thành cũ hơn", completedEarlier))
+        }
+    }
+
+    private fun getStartOfWeekMillis(): Long {
+        return java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
 
     private val _syncState = MutableStateFlow<ScheduleSyncState>(ScheduleSyncState.Idle)
     val syncState: StateFlow<ScheduleSyncState> = _syncState.asStateFlow()

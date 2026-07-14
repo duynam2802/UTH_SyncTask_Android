@@ -23,6 +23,7 @@ class SecureCredentialStore(private val context: Context) {
         val MSSV = stringPreferencesKey("enc_mssv")
         val PASSWORD = stringPreferencesKey("enc_password")
         val REMEMBER = booleanPreferencesKey("remember")
+        val PORTAL_TOKEN = stringPreferencesKey("portal_token")
     }
 
     suspend fun saveCredentials(credentials: UthCredentials) {
@@ -31,6 +32,18 @@ class SecureCredentialStore(private val context: Context) {
             prefs[Keys.PASSWORD] = CryptoManager.encrypt(credentials.password)
             prefs[Keys.REMEMBER] = true
         }
+    }
+
+    suspend fun savePortalToken(token: String) {
+        context.credentialDataStore.edit { prefs ->
+            prefs[Keys.PORTAL_TOKEN] = CryptoManager.encrypt(token)
+        }
+    }
+
+    suspend fun getPortalToken(): String? {
+        val prefs = context.credentialDataStore.data.first()
+        val encToken = prefs[Keys.PORTAL_TOKEN] ?: return null
+        return CryptoManager.decrypt(encToken)
     }
 
     suspend fun getSavedCredentials(): UthCredentials? {

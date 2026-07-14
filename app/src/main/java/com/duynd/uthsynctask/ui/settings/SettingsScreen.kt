@@ -19,7 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -45,12 +47,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.duynd.uthsynctask.data.local.SecureCredentialStore
 import com.duynd.uthsynctask.data.model.GoogleCalendarOption
+import com.duynd.uthsynctask.ui.login.PortalLoginScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onLoggedOut: () -> Unit,
+    credentialStore: SecureCredentialStore,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
@@ -61,6 +66,7 @@ fun SettingsScreen(
     var showCalendarPicker by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showDisconnectConfirm by remember { mutableStateOf(false) }
+    var showPortalLogin by remember { mutableStateOf(false) }
 
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -100,7 +106,23 @@ fun SettingsScreen(
                 onDismissResult = { viewModel.dismissCleanupState() }
             )
 
-            UthAccountSection(onLogoutRequest = { showLogoutConfirm = true })
+            UthAccountSection(
+                onLogoutRequest = { showLogoutConfirm = true },
+                onPortalLoginRequest = { showPortalLogin = true }
+            )
+        }
+    }
+
+    if (showPortalLogin) {
+        AlertDialog(
+            onDismissRequest = { showPortalLogin = false },
+            modifier = Modifier.fillMaxSize(),
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            PortalLoginScreen(
+                credentialStore = credentialStore,
+                onLoginSuccess = { showPortalLogin = false }
+            )
         }
     }
 
@@ -260,16 +282,25 @@ private fun CleanupSection(
 }
 
 @Composable
-private fun UthAccountSection(onLogoutRequest: () -> Unit) {
+private fun UthAccountSection(
+    onLogoutRequest: () -> Unit,
+    onPortalLoginRequest: () -> Unit
+) {
     SettingsCard(title = "Tài khoản UTH") {
         Text(
             "Tài khoản dùng chung cho Portal, Courses và thnn.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        OutlinedButton(onClick = onLogoutRequest) {
-            Icon(Icons.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(" Đăng xuất tài khoản UTH", modifier = Modifier.padding(start = 8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onPortalLoginRequest) {
+                Icon(Icons.Filled.Language, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(" Đăng nhập Portal", modifier = Modifier.padding(start = 8.dp))
+            }
+            OutlinedButton(onClick = onLogoutRequest) {
+                Icon(Icons.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(" Đăng xuất", modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }

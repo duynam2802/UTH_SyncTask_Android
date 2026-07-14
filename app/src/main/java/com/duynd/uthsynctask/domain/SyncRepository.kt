@@ -12,7 +12,11 @@ import com.duynd.uthsynctask.data.remote.google.AuthorizationOutcome
 import com.duynd.uthsynctask.data.remote.google.GoogleAuthManager
 import com.duynd.uthsynctask.data.remote.google.GoogleCalendarRepository
 import com.duynd.uthsynctask.data.remote.moodle.MoodleScheduleRepository
+import com.duynd.uthsynctask.data.remote.portal.PortalScheduleRepository
 import kotlinx.coroutines.flow.first
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 private data class SyncPlanItem(val previous: SyncedEvent?, val current: SyncedEvent)
 
@@ -29,6 +33,7 @@ class SyncRepository(context: Context) {
     private val settingsStore = AppSettingsStore(appContext)
     private val googleAuthManager = GoogleAuthManager(appContext)
     private val googleCalendarRepository = GoogleCalendarRepository()
+    private val portalRepository = PortalScheduleRepository()
 
     suspend fun sync(): SyncOutcome {
         val credentials = credentialStore.getSavedCredentials()
@@ -48,12 +53,15 @@ class SyncRepository(context: Context) {
         val planItems = mutableListOf<SyncPlanItem>()
         val warnings = mutableListOf<String>()
 
-        // Chỉ 2 nguồn này chạy được Moodle login flow. PORTAL dùng API riêng, chưa tích hợp
-        // vào luồng đồng bộ chính (xem PortalScheduleRepository - còn thiếu bước đăng nhập).
+        // Lấy danh sách sự kiện hiện tại trên Cloud để đối chiếu (tránh trùng lặp với lịch có sẵn)
+        val cloudEvents = googleCalendarRepository.listAllEvents(accessToken, selectedCalendar.id, System.currentTimeMillis() - 24 * 60 * 60 * 1000)
+            .getOrElse { emptyList() }
+
+        // Chỉ 2 nguồn này chạy được Moodle login flow.
         for (source in listOf(EventSource.COURSES, EventSource.THNN)) {
             val moodleRepo = MoodleScheduleRepository(source)
             when (val loginResult = moodleRepo.login(credentials.mssv, credentials.password)) {
-                is LoginResult.Success -> {
+                is LoginResult.Success, is LoginResult.SuccessWithToken -> {
                     val discovered = try {
                         moodleRepo.discoverActivities()
                     } catch (e: Exception) {
@@ -111,6 +119,41 @@ class SyncRepository(context: Context) {
             }
         }
 
+        // PORTAL: Lấy thời khoá biểu học trên lớp.
+        val storedPortalToken = credentialStore.getPortalToken()
+        if (storedPortalToken != null) {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            for (weekOffset in 0..3) {
+                val cal = Calendar.getInstance().apply { add(Calendar.WEEK_OF_YEAR, weekOffset) }
+                val dateStr = sdf.format(cal.time)
+                try {
+                    val items = portalRepository.fetchWeeklySchedule(dateStr, storedPortalToken)
+                    for (item in items) {
+                        val ev = portalRepository.toSyncedEvent(item) ?: continue
+                        val existing = existingEventsById[ev.id]
+                        planItems.add(SyncPlanItem(existing, ev))
+                    }
+                } catch (e: Exception) {
+                    if (e.message?.contains("401") == true) {
+                        warnings.add("Portal: Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại Portal trong ứng dụng.")
+                        break 
+                    } else {
+                        warnings.add("Portal (tuần $dateStr): ${e.message}")
+                    }
+                }
+            }
+        } else {
+            // Thử login tự động một lần, nếu thất bại do CAPTCHA thì sẽ không có token lưu trữ
+            val portalLogin = portalRepository.login(credentials.mssv, credentials.password)
+            if (portalLogin is LoginResult.SuccessWithToken) {
+                credentialStore.savePortalToken(portalLogin.token)
+                // Đệ quy nhẹ hoặc copy logic ở trên, nhưng để an toàn ta báo user chạy lại lần sau
+                warnings.add("Portal: Đã lấy được token mới, vui lòng nhấn đồng bộ lại.")
+            } else {
+                warnings.add("Portal: Chưa đăng nhập hoặc vướng CAPTCHA. Hãy vào Đăng nhập Portal.")
+            }
+        }
+
         if (planItems.isEmpty() && warnings.isNotEmpty()) {
             return SyncOutcome.Error(warnings.joinToString("\n"))
         }
@@ -124,6 +167,22 @@ class SyncRepository(context: Context) {
             try {
                 when {
                     ev.googleEventId == null -> {
+                        // TRƯỚC KHI THÊM MỚI: Kiểm tra xem trên Google Calendar đã có sự kiện 
+                        // trùng Tên và Giờ chưa (để xoá bản cũ/bản mặc định/bản sai phòng)
+                        val fuzzyTitle = ev.title.substringBefore(" (").substringBefore(" -").trim()
+                        val startTimeStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply {
+                            timeZone = java.util.TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+                        }.format(java.util.Date(ev.startTimeMillis))
+
+                        val cloudDuplicate = cloudEvents.firstOrNull { cloudEv ->
+                            val cloudTitle = cloudEv.summary?.removePrefix("✅ ")?.trim() ?: ""
+                            cloudTitle.startsWith(fuzzyTitle) && cloudEv.start?.dateTime?.startsWith(startTimeStr) == true
+                        }
+
+                        if (cloudDuplicate != null) {
+                            googleCalendarRepository.deleteEvent(accessToken, selectedCalendar.id, cloudDuplicate.id!!)
+                        }
+
                         googleCalendarRepository.insertEvent(accessToken, selectedCalendar.id, ev)
                             .onSuccess { googleEventId ->
                                 eventStore.upsert(
@@ -222,8 +281,9 @@ class SyncRepository(context: Context) {
     }
 
     /**
-     * Dọn dẹp sự kiện bị lưu trùng ở NHIỀU lịch khác nhau (VD: người dùng đổi lịch lưu vài lần).
-     * Được gọi thủ công từ màn Cài đặt, KHÔNG chạy tự động mỗi giờ vì tốn nhiều API call.
+     * Dọn dẹp cực mạnh:
+     * 1. Xoá sự kiện bị lưu trùng ở các lịch KHÔNG được chọn.
+     * 2. Xoá sự kiện trùng lặp theo TIÊU ĐỀ và THỜI GIAN ở ngay trong lịch đang chọn.
      */
     suspend fun cleanupDuplicatesAcrossCalendars(): Result<Int> {
         val selectedCalendar = settingsStore.selectedCalendarFlow.first()
@@ -237,6 +297,8 @@ class SyncRepository(context: Context) {
             .getOrElse { return Result.failure(it) }
 
         var removedCount = 0
+        
+        // Bước 1: Dọn theo ID (logic cũ)
         val events = eventStore.getAll()
         for (event in events) {
             val occurrences = googleCalendarRepository.findAllOccurrences(accessToken, event.id, calendars)
@@ -245,13 +307,33 @@ class SyncRepository(context: Context) {
                 googleCalendarRepository.deleteEvent(accessToken, calId, eventId)
                 removedCount++
             }
-            val correctOccurrence = occurrences.firstOrNull { it.first == selectedCalendar.id }
-            if (correctOccurrence != null && event.googleEventId != correctOccurrence.second) {
-                eventStore.upsert(
-                    event.copy(googleCalendarId = selectedCalendar.id, googleEventId = correctOccurrence.second)
-                )
+        }
+
+        // Bước 2: Dọn theo TIÊU ĐỀ trong cùng một NGÀY (Cực mạnh)
+        // Chỉ quét các sự kiện từ 1 tháng trước đến 3 tháng sau để tránh tốn API
+        val oneMonthAgo = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+        val allEvents = googleCalendarRepository.listAllEvents(accessToken, selectedCalendar.id, oneMonthAgo)
+            .getOrElse { return Result.failure(it) }
+
+        // Nhóm theo "Tên (đã lọc ✅) | Ngày (YYYY-MM-DD)"
+        val grouped = allEvents.groupBy { event ->
+            val cleanTitle = event.summary?.removePrefix("✅ ")?.trim() ?: ""
+            // Lấy phần ngày YYYY-MM-DD từ dateTime (2024-07-15T...) hoặc date
+            val datePart = event.start?.dateTime?.substringBefore("T") ?: event.start?.date ?: ""
+            "$cleanTitle|$datePart"
+        }
+        
+        for ((_, duplicates) in grouped) {
+            if (duplicates.size > 1) {
+                // Giữ lại 1 bản, xoá các bản còn lại
+                for (i in 1 until duplicates.size) {
+                    val eventId = duplicates[i].id ?: continue
+                    googleCalendarRepository.deleteEvent(accessToken, selectedCalendar.id, eventId)
+                    removedCount++
+                }
             }
         }
+
         return Result.success(removedCount)
     }
 }

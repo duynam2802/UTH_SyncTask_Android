@@ -15,6 +15,7 @@ data class UthCredentials(
  */
 sealed class LoginResult {
     data object Success : LoginResult()
+    data class SuccessWithToken(val token: String) : LoginResult()
     data class InvalidCredentials(val message: String) : LoginResult()
     data class NetworkError(val message: String) : LoginResult()
     data class UnknownError(val message: String) : LoginResult()
