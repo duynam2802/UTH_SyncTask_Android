@@ -1,10 +1,11 @@
-# UTH_SyncTask_Android (v2.5)
+# UTH_SyncTask_Android (v2.6)
 
-Một ứng dụng Android nhỏ gọn, mượt mà giúp tự động cào lịch học từ hệ thống sinh viên Đại học Giao thông Vận tải TP.HCM (UTH) và đồng bộ trực tiếp vào lịch mặc định (Google Calendar) của điện thoại.
+Một ứng dụng Android nhỏ gọn, siêu mượt mà giúp tự động cào lịch học từ hệ thống sinh viên Đại học Giao thông Vận tải TP.HCM (UTH) và đồng bộ trực tiếp vào lịch mặc định (Google Calendar) của điện thoại.
 
-> Đây là phiên bản di động v2.5 được nâng cấp toàn diện từ nền tảng gốc [UTH_SyncTask](https://github.com/duynam2802/UTH_SyncTask).
+> Đây là phiên bản di động v2.6 được nâng cấp toàn diện từ nền tảng gốc [UTH_SyncTask](https://github.com/duynam2802/UTH_SyncTask).
 
 ## ✨ Tính năng chính (Minimal & Smooth)
+- **Giao diện & Animation mượt mà 120fps (v2.6):** Thanh BottomBar phong cách One UI / Material 3 với hiệu ứng nền capsule active chuyển đổi mượt mà theo cử chỉ vuốt thực tế của sinh viên, tối ưu phần cứng GPU RenderThread giúp phản hồi tức thì và hoàn toàn không bị khựng/giật.
 - **Đăng nhập 1 lần:** Lưu thông tin đăng nhập an toàn, không cần nhập lại lần sau.
 - **Đăng nhập Portal trực quan:** Theo dõi tiến trình đăng nhập Portal qua thanh trạng thái thời gian thực ở đáy màn hình.
 - **Đồng bộ một chạm (One-tap Sync):** Kích hoạt cào dữ liệu lịch học và deadline với dòng tiến trình chi tiết từng bước (Moodle Courses, THNN, Portal, Google Calendar).
@@ -15,7 +16,7 @@ Một ứng dụng Android nhỏ gọn, mượt mà giúp tự động cào lị
 
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
 - **Language:** Kotlin
-- **UI Framework:** Jetpack Compose (Declarative UI)
+- **UI Framework:** Jetpack Compose (Declarative UI with RenderThread GPU optimization & Physics Spring Animations)
 - **Asynchronous:** Kotlin Coroutines
 - **Networking:** OkHttp (Xử lý Session/Cookie)
 - **HTML Parser:** Jsoup (Bóc tách dữ liệu lịch học từ HTML)

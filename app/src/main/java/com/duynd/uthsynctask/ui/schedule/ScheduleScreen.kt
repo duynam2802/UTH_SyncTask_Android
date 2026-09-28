@@ -33,12 +33,16 @@ import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.data.model.SyncOutcome
 import com.duynd.uthsynctask.data.model.SyncedEvent
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.TimeZone
 
-private val displayFormat = SimpleDateFormat("HH:mm, dd/MM/yyyy", Locale("vi")).apply {
-    timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+private val displayFormatter = DateTimeFormatter.ofPattern("HH:mm, dd/MM/yyyy", Locale.forLanguageTag("vi"))
+private val timeZone = ZoneId.of("Asia/Ho_Chi_Minh")
+
+private fun formatMillis(millis: Long): String {
+    return Instant.ofEpochMilli(millis).atZone(timeZone).format(displayFormatter)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -180,7 +184,7 @@ fun ScheduleScreen(
                             }
                             
                             items(group.events, key = { it.id }) { event ->
-                                Box(modifier = Modifier.animateItem().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                                     EventCard(
                                         event = event,
                                         onToggleCompleted = { viewModel.toggleCompleted(event) },
@@ -246,7 +250,7 @@ fun ScheduleScreen(
 @Composable
 private fun LastSyncBanner(lastSyncAtMillis: Long?) {
     val text = if (lastSyncAtMillis != null) {
-        "Đồng bộ lần cuối: ${displayFormat.format(java.util.Date(lastSyncAtMillis))}"
+        "Đồng bộ lần cuối: ${formatMillis(lastSyncAtMillis)}"
     } else {
         "Chưa đồng bộ lần nào - bấm \"Đồng bộ ngay\" để bắt đầu"
     }
@@ -383,9 +387,9 @@ private fun EventCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (isPortal) {
-                            "${displayFormat.format(java.util.Date(event.startTimeMillis))} - ${displayFormat.format(java.util.Date(event.endTimeMillis)).substringBefore(",")}"
+                            "${formatMillis(event.startTimeMillis)} - ${formatMillis(event.endTimeMillis).substringBefore(",")}"
                         } else {
-                            "Hết hạn: ${displayFormat.format(java.util.Date(event.endTimeMillis))}"
+                            "Hết hạn: ${formatMillis(event.endTimeMillis)}"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -463,13 +467,13 @@ private fun EventDetailContent(
         DetailItem(
             icon = Icons.Filled.CalendarMonth,
             label = "Thời gian bắt đầu",
-            value = displayFormat.format(java.util.Date(event.startTimeMillis))
+            value = formatMillis(event.startTimeMillis)
         )
 
         DetailItem(
             icon = Icons.Filled.Event,
             label = "Thời gian kết thúc",
-            value = displayFormat.format(java.util.Date(event.endTimeMillis))
+            value = formatMillis(event.endTimeMillis)
         )
 
         if (!event.isPreciseTime) {

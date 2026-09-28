@@ -1,7 +1,10 @@
 package com.duynd.uthsynctask.ui.main
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -18,9 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,36 +33,36 @@ import com.duynd.uthsynctask.ui.notifications.NotificationSettingsScreen
 import com.duynd.uthsynctask.ui.schedule.ScheduleScreen
 import com.duynd.uthsynctask.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalContext
+import kotlin.math.abs
 
 @Composable
 fun MainShellScreen(
     onLogout: () -> Unit
 ) {
-    // Sử dụng remember để tránh việc tính toán lại danh sách liên tục
     val tabs = remember { MainTab.items }
-    
-    // Sử dụng PagerState thay cho NavHost để hỗ trợ vuốt chuyển Tab như Telegram/iOS
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
     
-    // Xác định tab hiện tại dựa trên trang của Pager
-    val currentTab = tabs[pagerState.currentPage]
     val context = LocalContext.current
     val credentialStore = remember { SecureCredentialStore(context) }
 
     Scaffold(
         bottomBar = {
             UthModernBottomBar(
-                currentTab = currentTab,
+                tabs = tabs,
+                currentPage = pagerState.currentPage,
+                currentPageOffsetFraction = pagerState.currentPageOffsetFraction,
                 onTabSelected = { tab ->
                     val targetIdx = tabs.indexOf(tab)
                     if (targetIdx != pagerState.currentPage) {
                         scope.launch {
-                            // Cuộn mượt tới trang mới với hiệu ứng One UI
+                            // Chuyển trang sử dụng Spring animation chuẩn vật lý, chống khựng/giật
                             pagerState.animateScrollToPage(
                                 page = targetIdx,
-                                animationSpec = spring(stiffness = Spring.StiffnessLow)
+                                animationSpec = spring(
+                                    stiffness = Spring.StiffnessMediumLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy
+                                )
                             )
                         }
                     }
@@ -73,38 +76,44 @@ fun MainShellScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            // Load sẵn toàn bộ các trang để vuốt mượt mà tuyệt đối
-            beyondViewportPageCount = 2,
+            beyondViewportPageCount = 1,
             userScrollEnabled = true
         ) { page ->
-            // Bọc thêm một lớp Box có clipToBounds để chặn tuyệt đối nội dung tràn sang trang khác
+            // Tính toán hiệu ứng chuyển cảnh mượt mà (Scale + Alpha) trực tiếp trên RenderThread qua graphicsLayer
+            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+            val absOffset = abs(pageOffset).coerceIn(0f, 1f)
+            val scale = 0.96f + (1f - absOffset) * 0.04f
+            val alpha = 0.6f + (1f - absOffset) * 0.4f
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clipToBounds() 
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                            // Hiệu ứng Parallax: Chỉ trượt nội dung bên trong vùng đã được clip
-                            translationX = pageOffset * size.width * 0.25f
-                            alpha = 1f - (pageOffset.coerceIn(-1f, 1f).let { if (it < 0) -it else it } * 0.15f)
-                        }
-                ) {
-                    when (tabs[page]) {
-                        MainTab.Schedule -> ScheduleScreen(
-                            onNavigateToSettings = {
-                                scope.launch { pagerState.animateScrollToPage(tabs.indexOf(MainTab.Settings)) }
-                            }
-                        )
-                        MainTab.Notifications -> NotificationSettingsScreen()
-                        MainTab.Settings -> SettingsScreen(
-                            onLoggedOut = onLogout,
-                            credentialStore = credentialStore
-                        )
+                    .clipToBounds()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
                     }
+            ) {
+                when (tabs[page]) {
+                    MainTab.Schedule -> ScheduleScreen(
+                        onNavigateToSettings = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(
+                                    page = tabs.indexOf(MainTab.Settings),
+                                    animationSpec = spring(
+                                        stiffness = Spring.StiffnessMediumLow,
+                                        dampingRatio = Spring.DampingRatioNoBouncy
+                                    )
+                                )
+                            }
+                        }
+                    )
+                    MainTab.Notifications -> NotificationSettingsScreen()
+                    MainTab.Settings -> SettingsScreen(
+                        onLoggedOut = onLogout,
+                        credentialStore = credentialStore
+                    )
                 }
             }
         }
@@ -113,37 +122,45 @@ fun MainShellScreen(
 
 @Composable
 private fun UthModernBottomBar(
-    currentTab: MainTab,
+    tabs: List<MainTab>,
+    currentPage: Int,
+    currentPageOffsetFraction: Float,
     onTabSelected: (MainTab) -> Unit
 ) {
-    // Thiết kế dạng Floating Bar phong cách One UI
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp)
-            .height(72.dp),
-        shape = RoundedCornerShape(36.dp), // Bo tròn cực đại
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-        tonalElevation = 4.dp, // Giảm xuống để nhẹ hơn
+            .padding(horizontal = 20.dp, vertical = 14.dp)
+            .height(68.dp),
+        shape = RoundedCornerShape(34.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = 3.dp,
         shadowElevation = 8.dp
     ) {
+        val tabCount = tabs.size
+        val currentContinuousPosition = (currentPage + currentPageOffsetFraction).coerceIn(0f, (tabCount - 1).toFloat())
+
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MainTab.items.forEach { tab ->
-                val isSelected = currentTab.route == tab.route
+            tabs.forEachIndexed { index, tab ->
                 val icon = when (tab) {
                     MainTab.Schedule -> Icons.Filled.DateRange
                     MainTab.Notifications -> Icons.Filled.Notifications
                     MainTab.Settings -> Icons.Filled.Settings
                 }
-                
+
+                val selectionFraction = (1f - abs(currentContinuousPosition - index)).coerceIn(0f, 1f)
+
                 UthModernTabItem(
                     tab = tab,
                     icon = icon,
-                    isSelected = isSelected,
+                    selectionFraction = selectionFraction,
+                    modifier = Modifier.weight(1f),
                     onClick = { onTabSelected(tab) }
                 )
             }
@@ -155,31 +172,34 @@ private fun UthModernBottomBar(
 private fun UthModernTabItem(
     tab: MainTab,
     icon: ImageVector,
-    isSelected: Boolean,
+    selectionFraction: Float,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    
-    // Animate màu sắc icon: Xanh khi chọn, Xám khi không chọn
+
+    val activeColor = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        animationSpec = tween(300),
-        label = "color"
+        targetValue = if (selectionFraction > 0.4f) activeColor else inactiveColor,
+        animationSpec = tween(150),
+        label = "tabContentColor"
     )
 
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy, 
-            stiffness = Spring.StiffnessMedium // Tăng độ nhạy
-        ),
-        label = "scale"
-    )
+    // Scaling và Alpha siêu mượt chạy trực tiếp trên GPU RenderThread
+    val iconScale = 0.95f + (selectionFraction * 0.15f)
+    val contentAlpha = 0.7f + (selectionFraction * 0.3f)
+
+    // Thông số cho indicator capsule nền biến thiên mượt theo cử chỉ
+    val pillAlpha = selectionFraction * 0.65f
+    val pillScaleX = 0.75f + (selectionFraction * 0.25f)
+    val pillColor = MaterialTheme.colorScheme.primaryContainer
 
     Column(
-        modifier = Modifier
-            .width(84.dp)
-            .clip(RoundedCornerShape(20.dp))
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -189,44 +209,47 @@ private fun UthModernTabItem(
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .graphicsLayer { 
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .size(40.dp) // Thu nhỏ box lại vì không còn nền
+            modifier = Modifier.height(34.dp)
         ) {
+            // Nền capsule (Indicator active) biến đổi mượt mà
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.75f)
+                    .graphicsLayer {
+                        this.alpha = pillAlpha
+                        this.scaleX = pillScaleX
+                        this.scaleY = selectionFraction
+                    }
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(pillColor)
+            )
+
             Icon(
                 imageVector = icon,
                 contentDescription = tab.label,
                 tint = contentColor,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier
+                    .size(22.dp)
+                    .graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                        alpha = contentAlpha
+                    }
             )
         }
-        
-        val labelAlpha by animateFloatAsState(
-            targetValue = if (isSelected) 1f else 0.5f,
-            animationSpec = tween(200),
-            label = "alpha"
-        )
-        val labelOffset by animateDpAsState(
-            targetValue = if (isSelected) 0.dp else 2.dp,
-            animationSpec = spring(stiffness = Spring.StiffnessMedium),
-            label = "offset"
-        )
 
         Text(
             text = tab.label,
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-            color = contentColor, // Dùng chung màu với icon cho đồng bộ
+            fontWeight = FontWeight.SemiBold, // Giữ cố định FontWeight để tránh re-measure text gây giật
+            color = contentColor,
             fontSize = 10.sp,
             modifier = Modifier
-                .graphicsLayer { 
-                    alpha = labelAlpha
-                    translationY = labelOffset.toPx()
-                }
                 .padding(top = 2.dp)
+                .graphicsLayer {
+                    alpha = contentAlpha
+                }
         )
     }
 }
