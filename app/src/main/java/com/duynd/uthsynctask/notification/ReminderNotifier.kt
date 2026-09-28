@@ -1,12 +1,12 @@
 package com.duynd.uthsynctask.notification
 
 import android.Manifest
-import android.R
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -14,6 +14,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.duynd.uthsynctask.MainActivity
+import com.duynd.uthsynctask.R
+import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.data.model.NotificationSettings
 import com.duynd.uthsynctask.data.model.ReminderTier
 import com.duynd.uthsynctask.data.model.SyncedEvent
@@ -29,6 +31,14 @@ class ReminderNotifier(private val context: Context) {
         timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
     }
 
+    private val largeIconBitmap by lazy {
+        try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.logo)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     @SuppressLint("MissingPermission")
     fun notify(event: SyncedEvent, tier: ReminderTier, settings: NotificationSettings) {
         if (tier == ReminderTier.NONE) return
@@ -41,7 +51,7 @@ class ReminderNotifier(private val context: Context) {
         }
         val notificationId = event.id.hashCode()
 
-        val isPortal = event.source == com.duynd.uthsynctask.data.model.EventSource.PORTAL
+        val isPortal = event.source == EventSource.PORTAL
         val title = when {
             isPortal && tier == ReminderTier.URGENT -> "⏰ Sắp vào học: ${event.title}"
             isPortal -> "Lịch học sắp tới: ${event.title}"
@@ -51,7 +61,7 @@ class ReminderNotifier(private val context: Context) {
 
         val timeLabel = if (isPortal) "Bắt đầu" else "Hạn"
         val referenceTime = if (isPortal) event.startTimeMillis else event.endTimeMillis
-        val contentText = "${event.source.displayName} · $timeLabel: ${timeFormat.format(java.util.Date(referenceTime))}"
+        val contentText = "${event.source.displayName} · $timeLabel: ${timeFormat.format(Date(referenceTime))}"
 
         val openAppIntent = PendingIntent.getActivity(
             context,
@@ -74,7 +84,8 @@ class ReminderNotifier(private val context: Context) {
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF008588.toInt()) // Tông màu Teal UTH
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
@@ -86,6 +97,8 @@ class ReminderNotifier(private val context: Context) {
             .setAutoCancel(true)
             .setContentIntent(openAppIntent)
             .addAction(0, if (isPortal) "Đã xem" else "Đã biết / Hoàn thành", markDoneIntent)
+
+        largeIconBitmap?.let { builder.setLargeIcon(it) }
 
         // Thiết lập Full Screen Intent nếu là mức URGENT và được bật trong cài đặt
         if (tier == ReminderTier.URGENT && settings.fullScreenEnabled) {
@@ -105,8 +118,7 @@ class ReminderNotifier(private val context: Context) {
         if (!settings.soundEnabled) {
             builder.setSilent(true)
         } else {
-            // Sử dụng âm thanh người dùng chọn, hoặc mặc định nếu chưa chọn
-            val soundUri = settings.soundUri?.let { android.net.Uri.parse(it) }
+            val soundUri = settings.soundUri?.let { Uri.parse(it) }
                 ?: if (tier == ReminderTier.URGENT) {
                     RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
                 } else {
@@ -117,7 +129,7 @@ class ReminderNotifier(private val context: Context) {
         
         if (settings.vibrationEnabled) {
             val pattern = if (tier == ReminderTier.URGENT) {
-                longArrayOf(0, 1000, 500, 1000, 500, 1000) // Rung dài và mạnh
+                longArrayOf(0, 1000, 500, 1000, 500, 1000)
             } else {
                 longArrayOf(0, 250, 100, 250)
             }
@@ -159,7 +171,8 @@ class ReminderNotifier(private val context: Context) {
         )
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF008588.toInt())
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
@@ -170,6 +183,8 @@ class ReminderNotifier(private val context: Context) {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent)
+
+        largeIconBitmap?.let { builder.setLargeIcon(it) }
 
         if (hoursBefore <= 1 && settings.fullScreenEnabled) {
             val fullScreenIntent = PendingIntent.getActivity(
