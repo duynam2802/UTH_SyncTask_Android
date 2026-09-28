@@ -85,6 +85,18 @@ class EventStore(private val context: Context) {
         }
     }
 
+    suspend fun updateRoomNotificationFlags(id: String, notified24h: Boolean, notified1h: Boolean) {
+        val current = getAll().toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            current[index] = current[index].copy(
+                notifiedRoom24h = notified24h,
+                notifiedRoom1h = notified1h
+            )
+            replaceAll(current)
+        }
+    }
+
     private fun decode(json: String?): List<SyncedEvent> {
         if (json.isNullOrBlank()) return emptyList()
         return try {

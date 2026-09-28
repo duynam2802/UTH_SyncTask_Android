@@ -135,8 +135,37 @@ class SyncRepository(context: Context) {
                 try {
                     val items = portalRepository.fetchWeeklySchedule(dateStr, storedPortalToken)
                     for (item in items) {
-                        val ev = portalRepository.toSyncedEvent(item) ?: continue
-                        val existing = existingEventsById[ev.id]
+                        val rawEv = portalRepository.toSyncedEvent(item) ?: continue
+                        val existing = existingEventsById[rawEv.id]
+
+                        val oldRoom = existing?.room?.trim()
+                        val newRoom = rawEv.room?.trim()
+                        val hasRoomChanged = oldRoom != null && newRoom != null && oldRoom.isNotEmpty() && newRoom.isNotEmpty() && oldRoom != newRoom
+
+                        val ev = if (hasRoomChanged) {
+                            rawEv.copy(
+                                googleCalendarId = existing?.googleCalendarId,
+                                googleEventId = existing?.googleEventId,
+                                isCompleted = existing?.isCompleted ?: false,
+                                previousRoom = oldRoom,
+                                roomChanged = true,
+                                notifiedRoom24h = false,
+                                notifiedRoom1h = false
+                            )
+                        } else if (existing != null) {
+                            rawEv.copy(
+                                googleCalendarId = existing.googleCalendarId,
+                                googleEventId = existing.googleEventId,
+                                isCompleted = existing.isCompleted,
+                                previousRoom = existing.previousRoom,
+                                roomChanged = existing.roomChanged,
+                                notifiedRoom24h = existing.notifiedRoom24h,
+                                notifiedRoom1h = existing.notifiedRoom1h
+                            )
+                        } else {
+                            rawEv
+                        }
+
                         planItems.add(SyncPlanItem(existing, ev))
                     }
                 } catch (e: Exception) {
@@ -257,7 +286,8 @@ class SyncRepository(context: Context) {
         return old.startTimeMillis != new.startTimeMillis ||
             old.endTimeMillis != new.endTimeMillis ||
             old.title != new.title ||
-            old.isCompleted != new.isCompleted
+            old.isCompleted != new.isCompleted ||
+            old.room != new.room
     }
 
     /** Đánh dấu hoàn thành/chưa hoàn thành - đẩy lên Google Calendar ngay nếu đã kết nối. */

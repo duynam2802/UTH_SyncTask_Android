@@ -1,12 +1,14 @@
 package com.duynd.uthsynctask.notification
 
 import android.Manifest
+import android.R
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -16,6 +18,7 @@ import com.duynd.uthsynctask.data.model.NotificationSettings
 import com.duynd.uthsynctask.data.model.ReminderTier
 import com.duynd.uthsynctask.data.model.SyncedEvent
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
@@ -126,6 +129,80 @@ class ReminderNotifier(private val context: Context) {
 
     fun cancel(event: SyncedEvent) {
         NotificationManagerCompat.from(context).cancel(event.id.hashCode())
+    }
+
+    @SuppressLint("MissingPermission")
+    fun notifyRoomChange(event: SyncedEvent, hoursBefore: Int, settings: NotificationSettings) {
+        if (!hasNotificationPermission()) return
+
+        val channelId = if (hoursBefore <= 1) {
+            NotificationChannels.CHANNEL_URGENT
+        } else {
+            NotificationChannels.CHANNEL_NORMAL
+        }
+        val notificationId = (event.id + "_room_$hoursBefore").hashCode()
+
+        val title = "⚠️ Đổi phòng học: ${event.title.substringBefore(" (")}"
+        val prevRoomText = event.previousRoom ?: "phòng cũ"
+        val newRoomText = event.room ?: "phòng mới"
+        val contentText = "Thông báo trước ${hoursBefore}h: Môn học đã thay đổi phòng từ $prevRoomText sang $newRoomText. Bắt đầu lúc ${timeFormat.format(
+            Date(event.startTimeMillis)
+        )}."
+
+        val openAppIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_popup_reminder)
+            .setContentTitle(title)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(
+                if (hoursBefore <= 1) NotificationCompat.PRIORITY_MAX
+                else NotificationCompat.PRIORITY_HIGH
+            )
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent)
+
+        if (hoursBefore <= 1 && settings.fullScreenEnabled) {
+            val fullScreenIntent = PendingIntent.getActivity(
+                context,
+                notificationId + 1,
+                Intent(context, FullScreenReminderActivity::class.java).apply {
+                    putExtra("EXTRA_TITLE", title)
+                    putExtra("EXTRA_CONTENT", contentText)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setFullScreenIntent(fullScreenIntent, true)
+        }
+
+        if (!settings.soundEnabled) {
+            builder.setSilent(true)
+        } else {
+            val soundUri = settings.soundUri?.let { Uri.parse(it) }
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            builder.setSound(soundUri)
+        }
+
+        if (settings.vibrationEnabled) {
+            val pattern = if (hoursBefore <= 1) {
+                longArrayOf(0, 1000, 500, 1000, 500, 1000)
+            } else {
+                longArrayOf(0, 250, 100, 250)
+            }
+            builder.setVibrate(pattern)
+        }
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
 
     private fun hasNotificationPermission(): Boolean {

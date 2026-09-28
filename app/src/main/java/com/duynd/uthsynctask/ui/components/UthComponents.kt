@@ -3,6 +3,7 @@ package com.duynd.uthsynctask.ui.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,31 +55,20 @@ import com.duynd.uthsynctask.ui.theme.UthGradientStart
 import com.duynd.uthsynctask.ui.theme.UthSuccess
 import com.duynd.uthsynctask.ui.theme.UthWarning
 
-/**
- * Logo chữ "UTH" dạng khối gradient - không dùng ảnh trademark của trường,
- * bạn có thể thay bằng ảnh logo thật bằng cách đổi Composable này thành Image(painterResource(...)).
- */
+
 @Composable
 fun UthLogo(
     modifier: Modifier = Modifier,
     size: androidx.compose.ui.unit.Dp = 88.dp
 ) {
-    Box(
+    Image(
+        painter = androidx.compose.ui.res.painterResource(id = com.duynd.uthsynctask.R.drawable.logo), // Đổi "logo" thành tên file PNG của bạn trong res/drawable
+        contentDescription = "Logo UTH",
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(listOf(UthGradientStart, UthGradientEnd))
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "UTH",
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = (size.value * 0.26f).sp
-        )
-    }
+            .clip(CircleShape), // Bo tròn logo (hoặc bỏ .clip(CircleShape) nếu logo là hình vuông/chữ nhật)
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+    )
 }
 
 /**

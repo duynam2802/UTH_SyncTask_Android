@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.duynd.uthsynctask.data.local.EventStore
 import com.duynd.uthsynctask.data.local.NotificationSettingsStore
+import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.domain.ReminderPolicy
 import com.duynd.uthsynctask.notification.ReminderNotifier
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,20 @@ class ReminderCheckWorker(
             Log.d("ReminderWorker", "Tìm thấy ${events.size} deadline trong kho lưu trữ.")
 
             for (event in events) {
+                if (event.source == EventSource.PORTAL && event.roomChanged && !event.isCompleted) {
+                    val timeUntilStart = event.startTimeMillis - now
+                    if (timeUntilStart <= 24 * 60 * 60 * 1000L && timeUntilStart > 0L && !event.notifiedRoom24h) {
+                        Log.d("ReminderWorker", "Gửi thông báo đổi phòng (24h) cho: ${event.title}")
+                        notifier.notifyRoomChange(event, 24, settings)
+                        eventStore.updateRoomNotificationFlags(event.id, notified24h = true, notified1h = event.notifiedRoom1h)
+                    }
+                    if (timeUntilStart <= 1 * 60 * 60 * 1000L && timeUntilStart > 0L && !event.notifiedRoom1h) {
+                        Log.d("ReminderWorker", "Gửi thông báo đổi phòng (1h) cho: ${event.title}")
+                        notifier.notifyRoomChange(event, 1, settings)
+                        eventStore.updateRoomNotificationFlags(event.id, notified24h = event.notifiedRoom24h, notified1h = true)
+                    }
+                }
+
                 val tier = ReminderPolicy.evaluateTier(event, now)
                 if (ReminderPolicy.shouldNotifyNow(event, tier, now)) {
                     Log.d("ReminderWorker", "Gửi thông báo cho: ${event.title} (Tier: $tier)")

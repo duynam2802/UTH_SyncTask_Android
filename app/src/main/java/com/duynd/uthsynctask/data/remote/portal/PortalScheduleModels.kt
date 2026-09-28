@@ -174,7 +174,8 @@ class PortalScheduleRepository {
             startTimeMillis = startMillis,
             endTimeMillis = endMillis,
             sourceUrl = item.link ?: "https://portal.ut.edu.vn/calendar",
-            isPreciseTime = true
+            isPreciseTime = true,
+            room = item.tenPhong
         )
     }
 }
