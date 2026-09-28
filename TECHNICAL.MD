@@ -1,10 +1,10 @@
-# HỒ SƠ KỸ THUẬT (TECHNICAL PROFILE)
+# HỒ SƠ KỸ THUẬT (TECHNICAL PROFILE - v2.1)
 
 ### 1. Kiến trúc ứng dụng (Architecture)
 
 - **Kiến trúc:** MVVM (Model-View-ViewModel) kết hợp với Clean Architecture đơn giản.
 - **UI Framework:** Jetpack Compose (Declarative UI giúp giao diện mượt và dung lượng app cực nhẹ).
-- **Định dạng dữ liệu đồng bộ:** iCalendar (`.ics`) để tương thích với Google Calendar/Device Calendar.
+- **Cơ chế theo dõi tiến trình (Progress Tracking v2.1):** Truyền callback trạng thái từ `SyncRepository` qua `ScheduleViewModel` (`ScheduleSyncState.Syncing`) để hiển thị tiến độ chi tiết theo thời gian thực (real-time progress updates) cho cả đăng nhập Portal và đồng bộ lịch.
 
 ### 2. Các thư viện và công nghệ sử dụng (Stack & Dependencies)
 
