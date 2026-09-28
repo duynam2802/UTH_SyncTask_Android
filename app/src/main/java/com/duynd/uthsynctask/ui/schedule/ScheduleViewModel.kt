@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 sealed class ScheduleSyncState {
     data object Idle : ScheduleSyncState()
-    data object Syncing : ScheduleSyncState()
+    data class Syncing(val message: String = "Đang đồng bộ...") : ScheduleSyncState()
     data class Finished(val outcome: SyncOutcome) : ScheduleSyncState()
 }
 
@@ -100,9 +100,11 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
 
     fun syncNow() {
         if (_syncState.value is ScheduleSyncState.Syncing) return
-        _syncState.value = ScheduleSyncState.Syncing
+        _syncState.value = ScheduleSyncState.Syncing("Đang bắt đầu đồng bộ...")
         viewModelScope.launch {
-            val outcome = syncRepository.sync()
+            val outcome = syncRepository.sync { progressMessage ->
+                _syncState.value = ScheduleSyncState.Syncing(progressMessage)
+            }
             _syncState.value = ScheduleSyncState.Finished(outcome)
         }
     }

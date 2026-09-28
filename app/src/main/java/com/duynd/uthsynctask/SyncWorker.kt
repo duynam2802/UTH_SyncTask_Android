@@ -14,7 +14,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         try {
             val sharedPrefs = applicationContext.getSharedPreferences("UTH_PREFS", Context.MODE_PRIVATE)
             val mssv = sharedPrefs.getString("mssv", "083205012971") ?: ""
-            val pass = sharedPrefs.getString("pass", "0964911614@UTH") ?: ""
+            val pass = sharedPrefs.getString("pass", "xxxxxxxxxxxxx") ?: ""
             val accountEmail = sharedPrefs.getString("google_email", null)
 
             if (accountEmail == null) {

@@ -89,7 +89,7 @@ class PortalScheduleRepository {
             .addHeader("Accept", "application/json, text/plain, */*")
             .addHeader("Content-Type", "application/json")
             .addHeader("Origin", "https://portal.ut.edu.vn")
-            .addHeader("Referer", "https://portal.ut.edu.vn/login")
+            .addHeader("Referer", "https://portal.ut.edu.vn")
             .addHeader("Sec-Ch-Ua", "\"Not/A)Brand\";v=\"8\", \"Chromium\";v=\"126\", \"Google Chrome\";v=\"126\"")
             .addHeader("Sec-Ch-Ua-Mobile", "?0")
             .addHeader("Sec-Ch-Ua-Platform", "\"Windows\"")
@@ -105,9 +105,11 @@ class PortalScheduleRepository {
                     null
                 }
 
+                val resolvedToken = parsed?.token ?: if (parsed?.body?.startsWith("eyJ") == true) parsed.body else null
+
                 when {
                     response.code == 401 -> LoginResult.InvalidCredentials("Sai mã số sinh viên hoặc mật khẩu Portal.")
-                    parsed?.success == true && parsed.token != null -> LoginResult.SuccessWithToken(parsed.token)
+                    parsed?.success == true && resolvedToken != null -> LoginResult.SuccessWithToken(resolvedToken)
                     else -> LoginResult.InvalidCredentials(parsed?.message ?: "Portal phản hồi lỗi ${response.code}")
                 }
             }
@@ -133,9 +135,19 @@ class PortalScheduleRepository {
             client.newCall(request).execute().use { response ->
                 val text = response.body?.string()
                     ?: throw IllegalStateException("Không có phản hồi từ Portal (mã ${response.code}).")
-                val parsed = gson.fromJson(text, PortalWeeklyScheduleResponse::class.java)
+
+                if (response.code == 401 || text.trim().startsWith("\"") || text.contains("Invalid JWT token", ignoreCase = true)) {
+                    throw IllegalStateException("Invalid JWT token")
+                }
+
+                val parsed = try {
+                    gson.fromJson(text, PortalWeeklyScheduleResponse::class.java)
+                } catch (e: Exception) {
+                    throw IllegalStateException("Invalid JWT token")
+                }
+
                 if (parsed?.success != true) {
-                    throw IllegalStateException(parsed?.message ?: "Portal trả về lỗi không xác định.")
+                    throw IllegalStateException(parsed?.message ?: "Invalid JWT token")
                 }
                 parsed.body.orEmpty().filterNot { it.isTamNgung }
             }

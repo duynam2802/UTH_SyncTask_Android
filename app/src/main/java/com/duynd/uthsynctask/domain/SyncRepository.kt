@@ -35,13 +35,15 @@ class SyncRepository(context: Context) {
     private val googleCalendarRepository = GoogleCalendarRepository()
     private val portalRepository = PortalScheduleRepository()
 
-    suspend fun sync(): SyncOutcome {
+    suspend fun sync(onProgress: (String) -> Unit = {}): SyncOutcome {
+        onProgress("Đang kiểm tra thông tin tài khoản...")
         val credentials = credentialStore.getSavedCredentials()
             ?: return SyncOutcome.UthLoginFailed("Chưa đăng nhập tài khoản UTH.")
 
         val selectedCalendar = settingsStore.selectedCalendarFlow.first()
             ?: return SyncOutcome.NeedsCalendarSelection
 
+        onProgress("Đang kết nối Google Calendar...")
         val authOutcome = googleAuthManager.authorize()
         val accessToken = when (authOutcome) {
             is AuthorizationOutcome.Granted -> authOutcome.accessToken
@@ -54,14 +56,17 @@ class SyncRepository(context: Context) {
         val warnings = mutableListOf<String>()
 
         // Lấy danh sách sự kiện hiện tại trên Cloud để đối chiếu (tránh trùng lặp với lịch có sẵn)
+        onProgress("Đang quét sự kiện hiện có trên Google Calendar...")
         val cloudEvents = googleCalendarRepository.listAllEvents(accessToken, selectedCalendar.id, System.currentTimeMillis() - 24 * 60 * 60 * 1000)
             .getOrElse { emptyList() }
 
         // Chỉ 2 nguồn này chạy được Moodle login flow.
         for (source in listOf(EventSource.COURSES, EventSource.THNN)) {
+            onProgress("Đang đăng nhập ${source.displayName}...")
             val moodleRepo = MoodleScheduleRepository(source)
             when (val loginResult = moodleRepo.login(credentials.mssv, credentials.password)) {
                 is LoginResult.Success, is LoginResult.SuccessWithToken -> {
+                    onProgress("Đang tải danh sách hoạt động từ ${source.displayName}...")
                     val discovered = try {
                         moodleRepo.discoverActivities()
                     } catch (e: Exception) {
@@ -120,6 +125,7 @@ class SyncRepository(context: Context) {
         }
 
         // PORTAL: Lấy thời khoá biểu học trên lớp.
+        onProgress("Đang đồng bộ thời khóa biểu Portal UTH...")
         val storedPortalToken = credentialStore.getPortalToken()
         if (storedPortalToken != null) {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -134,7 +140,7 @@ class SyncRepository(context: Context) {
                         planItems.add(SyncPlanItem(existing, ev))
                     }
                 } catch (e: Exception) {
-                    if (e.message?.contains("401") == true) {
+                    if (e.message?.contains("401") == true || e.message?.contains("Invalid JWT token") == true) {
                         warnings.add("Portal: Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại Portal trong ứng dụng.")
                         break 
                     } else {
@@ -147,7 +153,6 @@ class SyncRepository(context: Context) {
             val portalLogin = portalRepository.login(credentials.mssv, credentials.password)
             if (portalLogin is LoginResult.SuccessWithToken) {
                 credentialStore.savePortalToken(portalLogin.token)
-                // Đệ quy nhẹ hoặc copy logic ở trên, nhưng để an toàn ta báo user chạy lại lần sau
                 warnings.add("Portal: Đã lấy được token mới, vui lòng nhấn đồng bộ lại.")
             } else {
                 warnings.add("Portal: Chưa đăng nhập hoặc vướng CAPTCHA. Hãy vào Đăng nhập Portal.")
@@ -160,8 +165,11 @@ class SyncRepository(context: Context) {
 
         var newCount = 0
         var updatedCount = 0
+        var processed = 0
 
         for (item in planItems) {
+            processed++
+            onProgress("Đang đồng bộ lên Google Calendar ($processed/${planItems.size})...")
             val old = item.previous
             val ev = item.current
             try {

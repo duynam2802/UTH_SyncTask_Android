@@ -95,7 +95,29 @@ fun ScheduleScreen(
                 }
 
                 if (syncState is ScheduleSyncState.Syncing) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = (syncState as ScheduleSyncState.Syncing).message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
