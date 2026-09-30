@@ -56,6 +56,8 @@ import com.duynd.uthsynctask.ui.login.PortalLoginScreen
 fun SettingsScreen(
     onLoggedOut: () -> Unit,
     credentialStore: SecureCredentialStore,
+    openPortalLoginOnStart: Boolean = false,
+    onPortalLoginConsumed: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel()
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
@@ -67,6 +69,13 @@ fun SettingsScreen(
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showDisconnectConfirm by remember { mutableStateOf(false) }
     var showPortalLogin by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openPortalLoginOnStart) {
+        if (openPortalLoginOnStart) {
+            showPortalLogin = true
+            onPortalLoginConsumed()
+        }
+    }
 
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()

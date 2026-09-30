@@ -149,7 +149,7 @@ class PortalScheduleRepository {
                 if (parsed?.success != true) {
                     throw IllegalStateException(parsed?.message ?: "Invalid JWT token")
                 }
-                parsed.body.orEmpty().filterNot { it.isTamNgung }
+                parsed.body.orEmpty()
             }
         }
 
@@ -175,7 +175,8 @@ class PortalScheduleRepository {
             endTimeMillis = endMillis,
             sourceUrl = item.link ?: "https://portal.ut.edu.vn/calendar",
             isPreciseTime = true,
-            room = item.tenPhong
+            room = item.tenPhong,
+            isTamNgung = item.isTamNgung
         )
     }
 }

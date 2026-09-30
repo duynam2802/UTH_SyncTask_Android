@@ -37,7 +37,9 @@ import kotlin.math.abs
 
 @Composable
 fun MainShellScreen(
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    openPortalLoginOnStart: Boolean = false,
+    onPortalLoginConsumed: () -> Unit = {}
 ) {
     val tabs = remember { MainTab.items }
     val pagerState = rememberPagerState(pageCount = { tabs.size })
@@ -45,6 +47,15 @@ fun MainShellScreen(
     
     val context = LocalContext.current
     val credentialStore = remember { SecureCredentialStore(context) }
+
+    LaunchedEffect(openPortalLoginOnStart) {
+        if (openPortalLoginOnStart) {
+            val settingsTabIdx = tabs.indexOf(MainTab.Settings)
+            if (settingsTabIdx >= 0) {
+                pagerState.scrollToPage(settingsTabIdx)
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -112,7 +123,9 @@ fun MainShellScreen(
                     MainTab.Notifications -> NotificationSettingsScreen()
                     MainTab.Settings -> SettingsScreen(
                         onLoggedOut = onLogout,
-                        credentialStore = credentialStore
+                        credentialStore = credentialStore,
+                        openPortalLoginOnStart = openPortalLoginOnStart,
+                        onPortalLoginConsumed = onPortalLoginConsumed
                     )
                 }
             }

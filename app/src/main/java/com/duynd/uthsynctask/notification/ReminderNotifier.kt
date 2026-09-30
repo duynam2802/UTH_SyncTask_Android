@@ -220,11 +220,111 @@ class ReminderNotifier(private val context: Context) {
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
 
+    @SuppressLint("MissingPermission")
+    fun notifyClassPaused(event: SyncedEvent, settings: NotificationSettings) {
+        if (!hasNotificationPermission()) return
+
+        val channelId = NotificationChannels.CHANNEL_NORMAL
+        val notificationId = (event.id + "_paused").hashCode()
+
+        val cleanTitle = event.title.substringBefore(" (")
+        val title = "🚫 Thông báo TẠM NGƯNG HỌC: $cleanTitle"
+        val contentText = "Buổi học lúc ${timeFormat.format(Date(event.startTimeMillis))} đã được thông báo TẠM NGƯNG trên Portal UTH."
+
+        val openAppIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFFD32F2F.toInt())
+            .setContentTitle(title)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent)
+
+        largeIconBitmap?.let { builder.setLargeIcon(it) }
+
+        if (!settings.soundEnabled) {
+            builder.setSilent(true)
+        } else {
+            val soundUri = settings.soundUri?.let { Uri.parse(it) }
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            builder.setSound(soundUri)
+        }
+
+        if (settings.vibrationEnabled) {
+            builder.setVibrate(longArrayOf(0, 500, 200, 500))
+        }
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    }
+
+    @SuppressLint("MissingPermission")
+    fun notifyPortalTokenExpired(settings: NotificationSettings) {
+        if (!hasNotificationPermission()) return
+
+        val channelId = NotificationChannels.CHANNEL_NORMAL
+        val notificationId = 999991
+
+        val title = "⚠️ Phiên đăng nhập Portal đã hết hạn"
+        val contentText = "Chạm vào đây để đăng nhập lại Portal UTH và tiếp tục đồng bộ thời khóa biểu."
+
+        val openAppIntent = PendingIntent.getActivity(
+            context,
+            notificationId,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(EXTRA_OPEN_PORTAL_LOGIN, true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFFFF9800.toInt())
+            .setContentTitle(title)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent)
+
+        largeIconBitmap?.let { builder.setLargeIcon(it) }
+
+        if (!settings.soundEnabled) {
+            builder.setSilent(true)
+        } else {
+            val soundUri = settings.soundUri?.let { Uri.parse(it) }
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            builder.setSound(soundUri)
+        }
+
+        if (settings.vibrationEnabled) {
+            builder.setVibrate(longArrayOf(0, 300, 150, 300))
+        }
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    }
+
     private fun hasNotificationPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ActivityCompat.checkSelfPermission(
             context,
             Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    companion object {
+        const val EXTRA_OPEN_PORTAL_LOGIN = "EXTRA_OPEN_PORTAL_LOGIN"
     }
 }

@@ -97,6 +97,15 @@ class EventStore(private val context: Context) {
         }
     }
 
+    suspend fun updateTamNgungNotifiedFlag(id: String, notified: Boolean) {
+        val current = getAll().toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            current[index] = current[index].copy(notifiedTamNgung = notified)
+            replaceAll(current)
+        }
+    }
+
     private fun decode(json: String?): List<SyncedEvent> {
         if (json.isNullOrBlank()) return emptyList()
         return try {

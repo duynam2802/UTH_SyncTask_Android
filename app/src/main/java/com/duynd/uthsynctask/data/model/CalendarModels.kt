@@ -35,7 +35,9 @@ data class SyncedEvent(
     val previousRoom: String? = null,
     val roomChanged: Boolean = false,
     val notifiedRoom24h: Boolean = false,
-    val notifiedRoom1h: Boolean = false
+    val notifiedRoom1h: Boolean = false,
+    val isTamNgung: Boolean = false,
+    val notifiedTamNgung: Boolean = false
 ) {
     val isSyncedToGoogle: Boolean get() = googleEventId != null
 }

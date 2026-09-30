@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -292,7 +293,7 @@ private fun EventCard(
     onDeleteRequest: () -> Unit,
     onClick: () -> Unit
 ) {
-    val isUpcoming = !event.isCompleted && 
+    val isUpcoming = !event.isCompleted && !event.isTamNgung &&
             event.startTimeMillis > System.currentTimeMillis() && 
             event.startTimeMillis <= System.currentTimeMillis() + 24 * 60 * 60 * 1000
 
@@ -306,13 +307,17 @@ private fun EventCard(
         colors = CardDefaults.cardColors(
             containerColor = if (isUpcoming) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+            } else if (event.isTamNgung) {
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
             } else {
                 MaterialTheme.colorScheme.surface
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isUpcoming) 2.dp else 0.5.dp),
         border = if (isUpcoming) {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        } else if (event.isTamNgung) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
         } else null
     ) {
         Row(
@@ -321,7 +326,9 @@ private fun EventCard(
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (isPortal) {
+                color = if (event.isTamNgung) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else if (isPortal) {
                     MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
                 } else {
                     MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
@@ -330,9 +337,9 @@ private fun EventCard(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = if (isPortal) Icons.Filled.Class else Icons.Filled.Assignment,
+                        imageVector = if (event.isTamNgung) Icons.Filled.Cancel else if (isPortal) Icons.Filled.Class else Icons.Filled.Assignment,
                         contentDescription = null,
-                        tint = if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                        tint = if (event.isTamNgung) MaterialTheme.colorScheme.error else if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -345,10 +352,25 @@ private fun EventCard(
                     Text(
                         text = if (isPortal) "Lịch học" else "Deadline",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                        color = if (event.isTamNgung) MaterialTheme.colorScheme.error else if (isPortal) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.Bold
                     )
-                    if (isUpcoming) {
+                    if (event.isTamNgung) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                "TẠM NGƯNG HỌC",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else if (isUpcoming) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
@@ -369,8 +391,8 @@ private fun EventCard(
                     text = event.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isUpcoming) FontWeight.Bold else FontWeight.Medium,
-                    textDecoration = if (event.isCompleted && !isPortal) TextDecoration.LineThrough else null,
-                    color = if (event.isCompleted) {
+                    textDecoration = if ((event.isCompleted && !isPortal) || event.isTamNgung) TextDecoration.LineThrough else null,
+                    color = if (event.isCompleted || event.isTamNgung) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     } else {
                         MaterialTheme.colorScheme.onSurface
@@ -455,6 +477,32 @@ private fun EventDetailContent(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+
+        if (event.isTamNgung) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Block,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        text = "Buổi học này đã được thông báo TẠM NGƯNG HỌC trên Portal UTH.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
 
         if (!event.courseName.isNullOrBlank()) {
             DetailItem(

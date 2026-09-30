@@ -145,7 +145,11 @@ class GoogleCalendarRepository {
     }
 
     private fun toEventBody(event: SyncedEvent): GoogleEventBody {
-        val statusPrefix = if (event.isCompleted) "✅ " else ""
+        val statusPrefix = when {
+            event.isTamNgung -> "🚫 [TẠM NGƯNG] "
+            event.isCompleted -> "✅ "
+            else -> ""
+        }
 
         val vietnamTimeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
         
@@ -165,13 +169,16 @@ class GoogleCalendarRepository {
         }
 
         val description = buildString {
+            if (event.isTamNgung) {
+                append("🚫 LỚP HỌC NÀY ĐANG TẠM NGƯNG HỌC.\n\n")
+            }
             append("Thời gian bắt đầu: ${descriptionTimeFormat.format(java.util.Date(event.startTimeMillis))}\n")
             append("Thời gian kết thúc: ${descriptionTimeFormat.format(java.util.Date(event.endTimeMillis))}\n")
             if (!event.isPreciseTime) {
                 append("⚠️ Giờ ước tính (không lấy được giờ chính xác từ nguồn).\n")
             }
             append("Nguồn: ${event.source.displayName}\n")
-            append("Xem chi tiết trên Courses: ${event.sourceUrl}")
+            append("Xem chi tiết trên Portal: ${event.sourceUrl}")
         }
 
         return GoogleEventBody(
@@ -181,7 +188,7 @@ class GoogleCalendarRepository {
             end = GoogleEventDateTime(dateTime = isoFormat.format(java.util.Date(event.endTimeMillis))),
             reminders = GoogleEventReminders(
                 useDefault = false,
-                overrides = listOf(GoogleReminderOverride(method = "popup", minutes = 60))
+                overrides = if (event.isTamNgung) emptyList() else listOf(GoogleReminderOverride(method = "popup", minutes = 60))
             ),
             extendedProperties = GoogleExtendedProperties(
                 private = mapOf(UTH_SYNC_ID_KEY to event.id)

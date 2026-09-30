@@ -16,7 +16,9 @@ import com.duynd.uthsynctask.ui.main.MainShellScreen
 
 @Composable
 fun AppNavHost(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    openPortalLoginOnStart: Boolean = false,
+    onPortalLoginConsumed: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -61,7 +63,9 @@ fun AppNavHost(
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
-                }
+                },
+                openPortalLoginOnStart = openPortalLoginOnStart,
+                onPortalLoginConsumed = onPortalLoginConsumed
             )
         }
     }

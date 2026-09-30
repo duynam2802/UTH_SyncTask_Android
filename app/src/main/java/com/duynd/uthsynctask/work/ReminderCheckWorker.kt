@@ -45,6 +45,12 @@ class ReminderCheckWorker(
             Log.d("ReminderWorker", "Tìm thấy ${events.size} deadline trong kho lưu trữ.")
 
             for (event in events) {
+                if (event.isTamNgung && !event.notifiedTamNgung) {
+                    Log.d("ReminderWorker", "Gửi thông báo tạm ngưng học cho: ${event.title}")
+                    notifier.notifyClassPaused(event, settings)
+                    eventStore.updateTamNgungNotifiedFlag(event.id, true)
+                }
+
                 if (event.source == EventSource.PORTAL && event.roomChanged && !event.isCompleted) {
                     val timeUntilStart = event.startTimeMillis - now
                     if (timeUntilStart <= 24 * 60 * 60 * 1000L && timeUntilStart > 0L && !event.notifiedRoom24h) {

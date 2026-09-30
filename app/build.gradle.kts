@@ -15,8 +15,8 @@ android {
         applicationId = "com.duynd.uthsynctask"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.6"
+        versionCode = 7
+        versionName = "2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         

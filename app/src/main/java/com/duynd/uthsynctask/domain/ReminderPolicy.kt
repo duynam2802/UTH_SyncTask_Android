@@ -19,7 +19,7 @@ object ReminderPolicy {
     private const val URGENT_REPEAT_INTERVAL_MILLIS = 15 * 60 * 1000L   // lặp mỗi 15 phút
 
     fun evaluateTier(event: SyncedEvent, nowMillis: Long): ReminderTier {
-        if (event.isCompleted) return ReminderTier.NONE
+        if (event.isCompleted || event.isTamNgung) return ReminderTier.NONE
 
         // Với lịch học (PORTAL), ta nhắc dựa trên giờ BẮT ĐẦU.
         // Với deadline (COURSES, THNN), ta nhắc dựa trên giờ KẾT THÚC (hạn nộp).

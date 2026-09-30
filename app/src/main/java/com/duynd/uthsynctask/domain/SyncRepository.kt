@@ -3,6 +3,7 @@ package com.duynd.uthsynctask.domain
 import android.content.Context
 import com.duynd.uthsynctask.data.local.AppSettingsStore
 import com.duynd.uthsynctask.data.local.EventStore
+import com.duynd.uthsynctask.data.local.NotificationSettingsStore
 import com.duynd.uthsynctask.data.local.SecureCredentialStore
 import com.duynd.uthsynctask.data.model.EventSource
 import com.duynd.uthsynctask.data.model.LoginResult
@@ -13,6 +14,7 @@ import com.duynd.uthsynctask.data.remote.google.GoogleAuthManager
 import com.duynd.uthsynctask.data.remote.google.GoogleCalendarRepository
 import com.duynd.uthsynctask.data.remote.moodle.MoodleScheduleRepository
 import com.duynd.uthsynctask.data.remote.portal.PortalScheduleRepository
+import com.duynd.uthsynctask.notification.ReminderNotifier
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -142,7 +144,9 @@ class SyncRepository(context: Context) {
                         val newRoom = rawEv.room?.trim()
                         val hasRoomChanged = oldRoom != null && newRoom != null && oldRoom.isNotEmpty() && newRoom.isNotEmpty() && oldRoom != newRoom
 
-                        val ev = if (hasRoomChanged) {
+                        val isAlreadyNotifiedTamNgung = existing?.notifiedTamNgung == true
+
+                        var ev = if (hasRoomChanged) {
                             rawEv.copy(
                                 googleCalendarId = existing?.googleCalendarId,
                                 googleEventId = existing?.googleEventId,
@@ -150,7 +154,8 @@ class SyncRepository(context: Context) {
                                 previousRoom = oldRoom,
                                 roomChanged = true,
                                 notifiedRoom24h = false,
-                                notifiedRoom1h = false
+                                notifiedRoom1h = false,
+                                notifiedTamNgung = isAlreadyNotifiedTamNgung
                             )
                         } else if (existing != null) {
                             rawEv.copy(
@@ -160,10 +165,19 @@ class SyncRepository(context: Context) {
                                 previousRoom = existing.previousRoom,
                                 roomChanged = existing.roomChanged,
                                 notifiedRoom24h = existing.notifiedRoom24h,
-                                notifiedRoom1h = existing.notifiedRoom1h
+                                notifiedRoom1h = existing.notifiedRoom1h,
+                                notifiedTamNgung = isAlreadyNotifiedTamNgung
                             )
                         } else {
                             rawEv
+                        }
+
+                        // Gửi thông báo nếu lớp học bị TẠM NGƯNG HỌC và chưa thông báo lần nào
+                        if (ev.isTamNgung && !ev.notifiedTamNgung) {
+                            val settingsStore = NotificationSettingsStore(appContext)
+                            val settings = settingsStore.getCurrent()
+                            ReminderNotifier(appContext).notifyClassPaused(ev, settings)
+                            ev = ev.copy(notifiedTamNgung = true)
                         }
 
                         planItems.add(SyncPlanItem(existing, ev))
@@ -171,6 +185,9 @@ class SyncRepository(context: Context) {
                 } catch (e: Exception) {
                     if (e.message?.contains("401") == true || e.message?.contains("Invalid JWT token") == true) {
                         warnings.add("Portal: Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại Portal trong ứng dụng.")
+                        val settingsStore = NotificationSettingsStore(appContext)
+                        val settings = settingsStore.getCurrent()
+                        ReminderNotifier(appContext).notifyPortalTokenExpired(settings)
                         break 
                     } else {
                         warnings.add("Portal (tuần $dateStr): ${e.message}")
@@ -185,6 +202,9 @@ class SyncRepository(context: Context) {
                 warnings.add("Portal: Đã lấy được token mới, vui lòng nhấn đồng bộ lại.")
             } else {
                 warnings.add("Portal: Chưa đăng nhập hoặc vướng CAPTCHA. Hãy vào Đăng nhập Portal.")
+                val settingsStore = NotificationSettingsStore(appContext)
+                val settings = settingsStore.getCurrent()
+                ReminderNotifier(appContext).notifyPortalTokenExpired(settings)
             }
         }
 
@@ -287,7 +307,8 @@ class SyncRepository(context: Context) {
             old.endTimeMillis != new.endTimeMillis ||
             old.title != new.title ||
             old.isCompleted != new.isCompleted ||
-            old.room != new.room
+            old.room != new.room ||
+            old.isTamNgung != new.isTamNgung
     }
 
     /** Đánh dấu hoàn thành/chưa hoàn thành - đẩy lên Google Calendar ngay nếu đã kết nối. */
